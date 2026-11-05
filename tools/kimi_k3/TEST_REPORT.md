@@ -26,6 +26,33 @@ section 8 for three-round results and conclusions.
 快照中的历史数据挂载路径为 `/mnt/share/c30087248/gsm8k`。
 宿主机操作系统、Docker 版本和完整容器创建参数尚未从本次证据核实。
 
+### 已核实的基础镜像
+
+历史测试容器基于以下 ARM64 / aarch64 nightly 镜像修改而来：
+
+```text
+quay.io/ascend/vllm-ascend:nightly-releases-v0.30.0-a5
+```
+
+服务器上的镜像 ID 为：
+
+```text
+sha256:4e34d514c73d903e1860a9034275dd855c14511bf35a01f75601ae25980610e6
+```
+
+镜像归档文件位于：
+
+```text
+/mnt/share/c30087248/vllm-ascend_images/vllm-ascend-nightly-releases-v0.30.0-a5-arm64.oci.tar
+```
+
+经服务器 Docker 镜像层比对，nightly 镜像的 18 个基础层完整构成本地快照
+`c30087248/kimi-k3-slim:before-components-20261031`（23 层）的前缀。
+该快照 ID 为 `sha256:a8fc248b64bf4031d508b764bbb4bd7808bd0687980d4be9341157f2dbbc0c2e`。
+这确认了镜像继承关系；容器内后续安装依赖与修改源码后的实际软件版本见下表，
+不能将其视为未经修改的 nightly 镜像版本清单。
+历史测试未换用另行下载的正式 `quay.io/ascend/vllm-ascend:v0.30.0-a5` 镜像。
+
 ### 容器内：历史实际软件版本
 
 | 组件 | 版本 |
