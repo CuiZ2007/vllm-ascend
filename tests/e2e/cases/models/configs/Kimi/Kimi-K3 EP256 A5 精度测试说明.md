@@ -10,8 +10,7 @@
 | --- | --- |
 | `.github/workflows/configs/nightly_config.yaml` | 注册 A5 单节点测试任务，指定 ARM64 A5 8 卡 runner 和测试 YAML |
 | `tests/e2e/cases/models/configs/Kimi/Kimi-K3-W4A8-EP256-A5.yaml` | 新增模型启动参数、数据集配置、请求参数和精度验收值 |
-| `tests/e2e/cases/models/configs/Kimi/Kimi-K3-EP256-A5-精度测试说明.md` | 说明改动范围、测试环境、测试参数和验证结果 |
-| `tests/e2e/cases/models/configs/Kimi/Kimi-K3-EP256-A5-Accuracy-Test-Guide.md` | 提供英文版测试说明 |
+| `tests/e2e/cases/models/configs/Kimi/Kimi-K3 EP256 A5 精度测试说明.md` | 说明改动范围、测试环境、测试参数和验证结果 |
 
 用例名称：`Kimi-K3-W4A8-EP256-A5-GSM8K-First500`。
 测试通过项目共享入口 `tests/e2e/common/single_node/test_single_node.py` 执行，
@@ -56,8 +55,8 @@
 | 项目 | 当前 YAML 配置 |
 | --- | --- |
 | 模型 | Kimi-K3 W4A8 MXFP/QuaRot，256 个路由专家 |
-| 模型路径 | `/root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256` |
-| 数据集路径 | `/root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k` |
+| 模型路径 | `/mnt/weight/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256` |
+| 数据集路径 | `/mnt/weight/modelscope/hub/datasets/CuiZ2007/gsm8k` |
 | 数据文件 | `test.jsonl`：前 500 题；`train.jsonl`：4-shot 示例 |
 | 服务端口 / Runner | `SERVER_PORT=8080` / `VLLM_USE_V2_MODEL_RUNNER=1` |
 | 通信缓冲 / CPU 线程 | `HCCL_BUFFSIZE=800` / `OMP_NUM_THREADS=1` |
@@ -115,14 +114,8 @@ python -m pytest -sv tests/e2e/common/single_node/test_single_node.py
 | YAML 解析、启动参数类型和内嵌 JSON 检查 | 通过 |
 | nightly 任务注册及配置路径检查 | 通过 |
 | Git 空白检查 | 通过 |
-| Markdownlint、Codespell、Typos、Gitleaks、文件名检查 | 通过 |
-| nightly 名称调度解析、参数与文档数值一致性 | 通过 |
 | 数据准备 | 测试集前 500 题比对通过，训练集 7473 条 |
-| 完整格式检查 `bash format.sh ci` | 待完成；钩子环境下载遇到 GitHub 连接超时，本机缺少可用 Bash |
-| 当前 YAML 的 A5 服务启动、推理及 500 题评测 | 首次运行在模型路径解析阶段失败，推理和评测未开始；已更新缓存路径，待重跑 |
-| nightly CI 运行 | 2026-11-08 首次运行结束：vllm-ascend 编译安装通过，YAML 测试在模型路径解析阶段失败；待重跑 |
+| 完整格式检查 `bash format.sh ci` | 待完成，环境缺少 `pre-commit` |
+| 当前 YAML 的 A5 服务启动、推理及 500 题评测 | 待执行 |
+| nightly CI 运行 | 待执行 |
 | 原生评分验收值校准 | 待执行；当前采用用户选定的 60.0% ±3.0 个百分点 |
-
-首次 nightly：[42462410488](https://github.com/vllm-project/vllm-ascend/actions/runs/42462410488)。
-ModelScope 报告缓存文件查找失败，且禁止联网下载。
-YAML 已改用 `/root/.cache` 路径，更新后的路径待重跑验证。
