@@ -7,23 +7,24 @@ verification use only the standard library.
 
 ## Usage
 
-Run from the repository root on the machine holding the weights. Replace the
-paths below with the actual host paths; they are examples from the report.
-The output's parent directory must already exist.
+Run from the repository root on the current A3 server. The commands use its
+host paths after moving the original weights under `weights/Eco-Tech`.
+`--output` names a new model directory under `/data/c30087248/weights`, not
+the existing weights root itself. The output directory must not already exist.
 
 ```bash
 python tools/kimi_k31/prune_experts_a3.py \
-  --source /mnt/weight/Kimi-K3.1-Pro-W4A8 \
-  --output /mnt/weight/Kimi-K3.1-Pro-W4A8-E32 \
+  --source /data/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8 \
+  --output /data/c30087248/weights/Kimi-K3.1-Pro-w4a8-E32 \
   --keep 32 --plan-only
 
 python tools/kimi_k31/prune_experts_a3.py \
-  --source /mnt/weight/Kimi-K3.1-Pro-W4A8 \
-  --output /mnt/weight/Kimi-K3.1-Pro-W4A8-E32 --keep 32
+  --source /data/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8 \
+  --output /data/c30087248/weights/Kimi-K3.1-Pro-w4a8-E32 --keep 32
 
 python tools/kimi_k31/prune_experts_a3.py \
-  --source /mnt/weight/Kimi-K3.1-Pro-W4A8 \
-  --output /mnt/weight/Kimi-K3.1-Pro-W4A8-E32 --keep 32 --verify-only
+  --source /data/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8 \
+  --output /data/c30087248/weights/Kimi-K3.1-Pro-w4a8-E32 --keep 32 --verify-only
 ```
 
 Keep the source checkpoint unchanged throughout generation and verification.
