@@ -1,0 +1,98 @@
+# Kimi-K3.1 Pro W4A8 E32 accuracy case for this single A3 server.
+# DRAFT: static validation only; loading, generation and accuracy are unverified.
+# Adapted from Kimi-K3-W4A8-EP256-A5.yaml on
+# Task2_2_tcase_main_Kimi-K3_Experts256_A5_TCase.
+# Runtime reference: docs/source/tutorials/models/Kimi-K3.1-Pro.md (A3).
+# Requires an ARM64 Ubuntu runtime supporting KimiK31ForConditionalGeneration,
+# kimi_k3 parsers, W4A8 ascend quantization and --default-chat-template-kwargs.
+# Reference image: quay.io/ascend/vllm-ascend:kimi-k3.1-pro-a3.
+# Install the repository's evaluation dependencies, including AISBench and pytest.
+# Hardware: one A3 server, 16 x 64-GiB NPU devices; TP16 + EP, two experts/rank.
+# Source: Eco-Tech/Kimi-K3.1-Pro-w4a8; keep prefix experts 0..31, top-k remains 16.
+# Model and dataset paths below are existing host paths; mount them unchanged.
+# GSM8K directory contains full train.jsonl for 4-shot and first-500 test.jsonl.
+# Keep dataset basename gsm8k and omit the trailing slash for the stock loader.
+# Unset HCCL_OP_EXPANSION_MODE before launching the harness.
+# Text-only, eager, single-node deployment; no DSpark draft model or PD connector.
+# A3 DSA cache settings follow the model guide: block-size 768, INT8 KV/indexer.
+# Conservative initial server/client concurrency: 16; seed 42; thinking_effort low.
+# Benchmark matches the A5 reference: stock 4-shot CoT, 500 prompts, 1024 tokens.
+# baseline 60.0 +/-3.0 is inherited provisionally, NOT a measured K3.1 E32 baseline.
+# Calibrate the acceptance range after a complete successful evaluation.
+# This file does not register an automatic nightly job or provision its runtime.
+test_cases:
+- name: Kimi-K3.1-W4A8-E32-A3-GSM8K-First500
+  model: /data/c30087248/weights/Kimi-K3.1-Pro-w4a8-E32
+  envs:
+    SERVER_PORT: "8080"
+    VLLM_USE_V2_MODEL_RUNNER: '1'
+    HCCL_BUFFSIZE: '800'
+    PYTORCH_NPU_ALLOC_CONF: expandable_segments:True
+    OMP_NUM_THREADS: '1'
+    VLLM_ENGINE_READY_TIMEOUT_S: '7200'
+    VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '3000'
+  server_cmd:
+  - --host
+  - 0.0.0.0
+  - --trust-remote-code
+  - --tokenizer-mode
+  - kimi_k3
+  - --quantization
+  - ascend
+  - --generation-config
+  - vllm
+  - --reasoning-parser
+  - kimi_k3
+  - --tensor-parallel-size
+  - '16'
+  - --enable-expert-parallel
+  - --block-size
+  - '768'
+  - --kv-cache-dtype
+  - int8
+  - --attention_config.indexer_kv_dtype
+  - int8
+  - --dtype
+  - bfloat16
+  - --enforce-eager
+  - --max-model-len
+  - '6144'
+  - --max-num-seqs
+  - '16'
+  - --max-num-batched-tokens
+  - '2048'
+  - --enable-chunked-prefill
+  - --gpu-memory-utilization
+  - '0.85'
+  - --no-enable-prefix-caching
+  - --skip-mm-profiling
+  - --mm-encoder-tp-mode
+  - data
+  - --mm-processor-cache-gb
+  - '0'
+  - --limit-mm-per-prompt
+  - '{"vision_chunk":0}'
+  - --additional-config
+  - '{"enable_flashcomm1":false,"multistream_overlap_shared_expert":false,"enable_fused_mc2":0,"enable_shared_expert_dp":false}'
+  - --seed
+  - '42'
+  - --port
+  - $SERVER_PORT
+  - --default-chat-template-kwargs
+  - '{"thinking_effort":"low"}'
+  test_content: []
+  benchmarks:
+    accuracy:
+      case_type: accuracy
+      dataset_path: /data/c30087248/datasets/first500/gsm8k
+      dataset_path_local: /data/c30087248/datasets/first500/gsm8k
+      request_conf: vllm_api_general_chat
+      dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
+      num_prompts: 500
+      max_out_len: 1024
+      batch_size: 16
+      temperature: 0
+      top_p: 1.0
+      seed: 42
+      baseline: 60.0
+      threshold: 3.0
