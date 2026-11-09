@@ -324,6 +324,10 @@ a5:
         config_base_path: tests/e2e/cases/models/configs/GLM
   single_node:
     test_config:
+      - name: Kimi-K3-W4A8-EP256-A5-GSM8K-First500
+        os: linux-aarch64-a5-8
+        config_file_path: Kimi-K3-W4A8-EP256-A5.yaml
+        config_base_path: tests/e2e/cases/models/configs/Kimi
       - name: DeepSeek-V4-Flash-0731-A5-PD
         os: linux-aarch64-a5-8
         config_file_path: DeepSeek-V4-Flash-0731-A5-PD.yaml
