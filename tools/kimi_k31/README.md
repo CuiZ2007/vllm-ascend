@@ -95,3 +95,18 @@ checkpoint. The historical report's successful run belongs to the original
 server scripts. NPU model loading, CPU numerical routing, inference and accuracy
 evaluation are separate validation steps; the script's byte-level report does
 not mark them as passed.
+
+### Validation and capacity checks
+
+Generation and `--verify-only` compare retained tensor bytes and auxiliary files
+(including tokenizer assets) against the source. Verification also requires
+`SHA256SUMS.json`, checks its complete expected file set, and verifies every listed
+file hash. The report separates `tensors_verified` (count) from
+`tensor_bytes_verified` (bytes), and records `auxiliary_files_verified`.
+
+The capacity estimate includes retained payloads, auxiliary files, metadata and a
+conservative margin. Available space may still change during generation. Existing
+pruning reports in the source are rejected before writing any output. Failed
+writes leave `.partial` for inspection, release the lock on handled exceptions,
+and do not publish the final directory. Abrupt termination can leave the lock;
+there is no automatic resume or cleanup.

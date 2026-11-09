@@ -9,6 +9,7 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[3] / "tools/kimi_k31/prune_experts_a3.py"
 SPEC = importlib.util.spec_from_file_location("prune_k31", SCRIPT)
@@ -90,9 +91,7 @@ class TestPruneKimiK31(unittest.TestCase):
             if pruner.router_match(key):
                 original = original[: len(original) // 2]
             self.assertEqual(data[start + desc["data_offsets"][0] : start + desc["data_offsets"][1]], original)
-        self.assertEqual(
-            pruner.validate(self.source, self.output, 2)["tensor_bytes_verified"], summary["output_tensors"]
-        )
+        self.assertEqual(pruner.validate(self.source, self.output, 2)["tensors_verified"], summary["output_tensors"])
 
     def test_dry_run_does_not_create_files(self):
         pruner.prune(self.source, self.output, 2, plan_only=True)
@@ -153,6 +152,97 @@ class TestPruneKimiK31(unittest.TestCase):
         path.write_bytes(struct.pack("<Q", len(raw)) + raw + data[8 + size :])
         with self.assertRaisesRegex(ValueError, "Gap or overlap"):
             pruner.prune(self.source, self.output, 2)
+
+    def test_auxiliary_missing_or_corrupt_rejected(self):
+        pruner.prune(self.source, self.output, 2)
+        path = self.output / "tokenizer.json"
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "Missing auxiliary"):
+            pruner.validate(self.source, self.output, 2)
+        path.write_text('{"fixture":fals}')
+        with self.assertRaisesRegex(ValueError, "Auxiliary"):
+            pruner.validate(self.source, self.output, 2)
+
+    def test_checksum_manifest_corruption_rejected(self):
+        pruner.prune(self.source, self.output, 2)
+        path = self.output / "SHA256SUMS.json"
+        hashes = pruner.read_json(path)
+        hashes["config.json"] = "0" * 64
+        path.write_text(json.dumps(hashes))
+        with self.assertRaisesRegex(ValueError, "checksum mismatch"):
+            pruner.validate(self.source, self.output, 2)
+
+    def test_checksum_manifest_missing_entry_rejected(self):
+        pruner.prune(self.source, self.output, 2)
+        path = self.output / "SHA256SUMS.json"
+        hashes = pruner.read_json(path)
+        del hashes["tokenizer.json"]
+        path.write_text(json.dumps(hashes))
+        with self.assertRaisesRegex(ValueError, "Checksum file set mismatch"):
+            pruner.validate(self.source, self.output, 2)
+
+    def test_missing_checksum_manifest_rejected(self):
+        pruner.prune(self.source, self.output, 2)
+        (self.output / "SHA256SUMS.json").unlink()
+        with self.assertRaisesRegex(ValueError, "Missing checksum manifest"):
+            pruner.validate(self.source, self.output, 2)
+
+    def test_source_reports_rejected_during_plan(self):
+        (self.source / "validation_report.json").write_text("{}")
+        with self.assertRaisesRegex(ValueError, "Source already has pruning reports"):
+            pruner.prune(self.source, self.output, 2, plan_only=True)
+        self.assertFalse(self.output.with_name("output.partial").exists())
+
+    def test_disk_estimate_includes_auxiliary_and_overhead(self):
+        plan = pruner.build_plan(self.source, 2)
+        estimate = pruner.required_disk_bytes(plan, pruner.inventory(self.source))
+        self.assertGreater(estimate, plan["summary"]["output_bytes"] + (self.source / "tokenizer.json").stat().st_size)
+        with (
+            mock.patch.object(pruner.shutil, "disk_usage", return_value=mock.Mock(free=estimate - 1)),
+            self.assertRaisesRegex(ValueError, "Insufficient disk space"),
+        ):
+            pruner.prune(self.source, self.output, 2)
+        self.assertFalse(self.output.with_name("output.lock").exists())
+
+    def test_write_failure_does_not_publish_and_releases_lock(self):
+        with (
+            mock.patch.object(pruner, "transfer", side_effect=OSError("simulated disk failure")),
+            self.assertRaisesRegex(OSError, "simulated disk failure"),
+        ):
+            pruner.prune(self.source, self.output, 2)
+        self.assertFalse(self.output.exists())
+        self.assertFalse(self.output.with_name("output.lock").exists())
+        self.assertTrue(self.output.with_name("output.partial").is_dir())
+
+    def test_multiple_shards_and_empty_pruned_shard(self):
+        groups = [{}, {}, {}]
+        for key, value in self.tensors.items():
+            expert = pruner.expert_match(key)
+            group = 2 if expert and int(expert[2]) >= 2 else (int(expert[1]) % 2 if expert else 0)
+            groups[group][key] = value
+        (self.source / "weights.safetensors").unlink()
+        weight_map, total = {}, 0
+        for number, tensors in enumerate(groups):
+            header, payload = {}, bytearray()
+            name = f"source-{number}.safetensors"
+            for key, (dtype, shape, data) in tensors.items():
+                header[key] = {"dtype": dtype, "shape": shape, "data_offsets": [len(payload), len(payload) + len(data)]}
+                payload.extend(data)
+                weight_map[key] = name
+            raw = json.dumps(header).encode()
+            raw += b" " * (-len(raw) % 8)
+            (self.source / name).write_bytes(struct.pack("<Q", len(raw)) + raw + payload)
+            total += len(payload)
+        (self.source / pruner.INDEX).write_text(
+            json.dumps({"metadata": {"total_size": total}, "weight_map": weight_map})
+        )
+        summary = pruner.prune(self.source, self.output, 2)
+        self.assertEqual(summary["output_shards"], 2)
+        self.assertEqual(len(list(self.output.glob("*.safetensors"))), 2)
+        report = pruner.validate(self.source, self.output, 2)
+        self.assertEqual(report["tensors_verified"], summary["output_tensors"])
+        self.assertEqual(report["tensor_bytes_verified"], summary["output_bytes"])
+        self.assertEqual(report["auxiliary_files_verified"], 1)
 
 
 if __name__ == "__main__":

@@ -39,6 +39,11 @@ DTYPE_BYTES = {
 }
 CHUNK_BYTES = 16 * 1024 * 1024
 MAX_HEADER_BYTES = 100 * 1024 * 1024
+DISK_MARGIN_BYTES = 64 * 1024 * 1024
+METADATA_SPACE_MULTIPLIER = 4
+REPORTS = frozenset(
+    ("pruning_manifest.json", "pruning_tensor_manifest.jsonl", "SHA256SUMS.json", "validation_report.json")
+)
 INDEX = "quant_model_weights.safetensors.index.json"
 QUANT = "quant_model_description.json"
 
@@ -135,6 +140,7 @@ def read_header(path):
 
 
 def build_plan(source, keep):
+    require(not (set(inventory(source)) & REPORTS), "Source already has pruning reports")
     # Check every original expert before dropping any payload, including removed experts.
     config, index, quant = (read_json(source / name) for name in ("config.json", INDEX, QUANT))
     cfg = config["text_config"]
@@ -280,7 +286,52 @@ def validate(source, checkpoint, keep):
                     f"Tensor hash mismatch: {key}",
                 )
     require(seen == set(expected), "Missing output tensors")
-    return {"tensor_bytes_verified": len(seen), "npu_inference_verified": False}
+    auxiliary = auxiliary_files(inventory(source))
+    for rel, identity in auxiliary.items():
+        path = checkpoint / rel
+        require(path.is_file() and not path.is_symlink(), f"Missing auxiliary file: {rel}")
+        require(path.stat().st_size == identity[0], f"Auxiliary size mismatch: {rel}")
+        with (source / rel).open("rb") as original, path.open("rb") as copied:
+            require(
+                transfer(original, 0, identity[0]) == transfer(copied, 0, identity[0]),
+                f"Auxiliary file mismatch: {rel}",
+            )
+    checksums = checkpoint / "SHA256SUMS.json"
+    require(checksums.is_file() and not checksums.is_symlink(), "Missing checksum manifest")
+    hashes = read_json(checksums)
+    required = set(shards) | set(auxiliary) | {"config.json", INDEX, QUANT, "pruning_tensor_manifest.jsonl"}
+    require(set(hashes) == required, "Checksum file set mismatch")
+    for rel, expected_hash in hashes.items():
+        path = checkpoint / rel
+        require(path.is_file() and not path.is_symlink(), f"Missing checksummed file: {rel}")
+        with path.open("rb") as stream:
+            require(transfer(stream, 0, path.stat().st_size) == expected_hash, f"File checksum mismatch: {rel}")
+    return {
+        "tensors_verified": len(seen),
+        "tensor_bytes_verified": plan["summary"]["output_bytes"],
+        "auxiliary_files_verified": len(auxiliary),
+        "npu_inference_verified": False,
+    }
+
+
+def auxiliary_files(files):
+    reserved = REPORTS | {"config.json", INDEX, QUANT}
+    return {
+        rel: identity for rel, identity in files.items() if rel not in reserved and not rel.endswith(".safetensors")
+    }
+
+
+def required_disk_bytes(plan, files):
+    # Include headers, copied assets, JSON metadata and reports. Keep a conservative
+    # margin for manifests, filesystem allocation and temporary metadata.
+    metadata_bytes = len(json.dumps(plan, ensure_ascii=False).encode())
+    auxiliary_bytes = sum(identity[0] for identity in auxiliary_files(files).values())
+    return (
+        plan["summary"]["output_bytes"]
+        + auxiliary_bytes
+        + metadata_bytes * METADATA_SPACE_MULTIPLIER
+        + DISK_MARGIN_BYTES
+    )
 
 
 def prune(source, output, keep=32, plan_only=False):
@@ -298,7 +349,7 @@ def prune(source, output, keep=32, plan_only=False):
         require(inventory(source) == before, "Source changed while planning")
         return plan["summary"]
     require(output.parent.is_dir(), "Output parent must exist")
-    require(shutil.disk_usage(output.parent).free > plan["summary"]["output_bytes"], "Insufficient disk space")
+    require(shutil.disk_usage(output.parent).free >= required_disk_bytes(plan, before), "Insufficient disk space")
     with lock.open("x") as stream:
         stream.write(str(os.getpid()))
     try:
@@ -334,19 +385,7 @@ def prune(source, output, keep=32, plan_only=False):
                 temporary.rename(partial / name)
                 with (partial / name).open("rb") as stream:
                     hashes[name] = transfer(stream, 0, (partial / name).stat().st_size)
-        reserved = {
-            "config.json",
-            INDEX,
-            QUANT,
-            "pruning_manifest.json",
-            "pruning_tensor_manifest.jsonl",
-            "SHA256SUMS.json",
-            "validation_report.json",
-        }
-        require(not (set(before) & (reserved - {"config.json", INDEX, QUANT})), "Source already has pruning reports")
-        for rel in before:
-            if rel in reserved or rel.endswith(".safetensors"):
-                continue
+        for rel in auxiliary_files(before):
             dest = partial / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source / rel, dest)
@@ -359,7 +398,6 @@ def prune(source, output, keep=32, plan_only=False):
         write_json(
             partial / INDEX, {"metadata": {"total_size": plan["summary"]["output_bytes"]}, "weight_map": weight_map}
         )
-        report = validate(source, partial, keep)
         require(inventory(source) == before, "Source changed during generation")
         write_json(
             partial / "pruning_manifest.json", {**plan["summary"], "source": str(source), "source_files": before}
@@ -368,6 +406,8 @@ def prune(source, output, keep=32, plan_only=False):
             with (partial / name).open("rb") as stream:
                 hashes[name] = transfer(stream, 0, (partial / name).stat().st_size)
         write_json(partial / "SHA256SUMS.json", hashes)
+        report = validate(source, partial, keep)
+        require(inventory(source) == before, "Source changed during validation")
         write_json(partial / "validation_report.json", report)
         require(not output.exists(), "Output appeared during generation")
         partial.rename(output)
