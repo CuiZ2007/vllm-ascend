@@ -1,0 +1,13 @@
+pr: 21284
+entries:
+  - category: bugfix
+    text: >-
+      Fixed Kimi-K3 numerical differences from v0.30.0 on A5 in eager,
+      batch-size-one inference by aligning routed projections, MLA decode,
+      and AttnRes softmax execution.
+    model: Kimi-K3
+    hardware: [A5]
+  - category: config
+    text: >-
+      Reverted the A5 MegaMoE shared-expert fusion feature introduced in PR 18053.
+    hardware: [A5]
