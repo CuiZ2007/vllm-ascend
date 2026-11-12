@@ -1,0 +1,86 @@
+{
+  "inspected_at_utc": "2026-11-12T07:18:08.054526+00:00",
+  "source": "/mnt/share/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8-mxfp",
+  "inspection_scope": "all shard headers and metadata; no tensor payload hashing",
+  "source_shards": 359,
+  "configuration": {
+    "num_hidden_layers": 93,
+    "first_k_dense_replace": 1,
+    "moe_layer_freq": 1,
+    "num_experts": 896,
+    "num_experts_per_token": 16,
+    "num_shared_experts": 2,
+    "num_expert_group": 1,
+    "topk_group": 1,
+    "hidden_size": 7168,
+    "moe_router_activation_func": "sigmoid",
+    "moe_renormalize": true,
+    "topk_method": "noaux_tc",
+    "routed_scaling_factor": 1.0
+  },
+  "totals": {
+    "source_tensors": 498106,
+    "source_bytes": 1525319180032,
+    "cropped_router_tensors": 184,
+    "router_removed_bytes": 1139857920,
+    "projected_output_tensors": 21178,
+    "projected_output_bytes": 129382401280,
+    "removed_expert_tensors": 476928,
+    "removed_expert_bytes": 1394796920832,
+    "source_shard_file_bytes": 1525392719168,
+    "projected_nonempty_shards": 337
+  },
+  "dtype_counts": {
+    "F32": 230,
+    "BF16": 1752,
+    "F8_E4M3": 766,
+    "U8": 495358
+  },
+  "expert_tensor_shapes": {
+    "w1.weight": [
+      3072,
+      1792
+    ],
+    "w1.weight_scale": [
+      3072,
+      112
+    ],
+    "w2.weight": [
+      3584,
+      1536
+    ],
+    "w2.weight_scale": [
+      3584,
+      96
+    ],
+    "w3.weight": [
+      3072,
+      1792
+    ],
+    "w3.weight_scale": [
+      3072,
+      112
+    ]
+  },
+  "quant_global_fields": {
+    "group_size": 32,
+    "metadata": {},
+    "model_quant_type": "W4A8_MXFP",
+    "optional": {},
+    "version": "1.0.0"
+  },
+  "projected_quant_tensor_counts": {
+    "FLOAT": 1982,
+    "W8A8_MXFP8": 1532,
+    "W4A8_MXFP": 17664
+  },
+  "metadata_sha256": {
+    "config.json": "aef78b673bd3f14ac9f46c3c4ed6aa290b665c665600ab5ff92e666c5549a9a8",
+    "quant_model_weights.safetensors.index.json": "55e2adf9afd6428b77d8322bae9e507ca4f56561875776ac7e2d74c4e38698fe",
+    "quant_model_description.json": "1a1f301239d16decc1a2c06c47caa82989142579d3a75b8fd76983254ee94f18"
+  },
+  "errors": [],
+  "structure_checks_passed": true,
+  "pruning_executed": false,
+  "npu_inference_verified": false
+}
