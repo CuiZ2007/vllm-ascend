@@ -19,7 +19,7 @@ def _implementation():
     tree = ast.parse(source.read_text())
     impl = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "AscendMLAImpl")
     names = {"_supports_flashmla_mlapo", "_can_use_flashmla_mlapo", "_prepare_flashmla_writer_buffers"}
-    methods = [node for node in impl.body if isinstance(node, ast.FunctionDef) and node.name in names]
+    methods: list[ast.stmt] = [node for node in impl.body if isinstance(node, ast.FunctionDef) and node.name in names]
     namespace = dict(
         torch=torch,
         cdiv=lambda value, divisor: (value + divisor - 1) // divisor,
