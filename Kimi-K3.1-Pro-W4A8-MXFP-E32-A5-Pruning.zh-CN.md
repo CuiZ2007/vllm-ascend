@@ -207,7 +207,26 @@ language_model.model.layers.{layer}.block_sparse_moe.gate.e_score_correction_bia
 
 生成的新权重使用独立文件，不与原权重建立软链接或硬链接。运行失败时保留临时结果供检查，恢复前确认原任务已停止。源索引与元数据会占用内存，16 MiB 仅是数据复制缓冲区上限。
 
-接口计划与 A3 保持一致：`--source`、`--output`、`--keep 32`、`--plan-only`、`--verify-only`。A5 生成脚本尚未实现，因此本报告不提供可直接执行的生成命令。
+A5 实现为 [prune_experts_a5.py](tools/kimi_k31/prune_experts_a5.py)，使用说明见 [README_A5.md](tools/kimi_k31/README_A5.md)。接口与 A3 保持一致：`--source`、`--output`、`--keep 32`、`--plan-only`、`--verify-only`。脚本依赖 Python 3.10 或更高版本，仅使用标准库。
+
+在仓库根目录执行下列命令。第一条只检查计划，第二条实际生成，第三条对已有输出进行源数据比对：
+
+```bash
+python tools/kimi_k31/prune_experts_a5.py \
+  --source /mnt/share/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8-mxfp \
+  --output /mnt/share/c30087248/weights/Kimi-K3.1-Pro-w4a8-mxfp-E32 \
+  --keep 32 --plan-only
+
+python tools/kimi_k31/prune_experts_a5.py \
+  --source /mnt/share/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8-mxfp \
+  --output /mnt/share/c30087248/weights/Kimi-K3.1-Pro-w4a8-mxfp-E32 \
+  --keep 32
+
+python tools/kimi_k31/prune_experts_a5.py \
+  --source /mnt/share/c30087248/weights/Eco-Tech/Kimi-K3.1-Pro-w4a8-mxfp \
+  --output /mnt/share/c30087248/weights/Kimi-K3.1-Pro-w4a8-mxfp-E32 \
+  --keep 32 --verify-only
+```
 
 ### 5.2 文件级验证与测试
 
@@ -265,7 +284,8 @@ top-k 边界存在并列值时应记录比较策略，避免把并列顺序变�
 | 原始 MXFP 权重目录、全部分片头及元数据检查 | 已完成，通过 |
 | 专家布局、路由形状、量化描述检查 | 已完成，通过 |
 | E32 张量数、有效字节数及非空分片数量计算 | 已完成 |
-| A5 专用生成脚本及合成文件测试 | 待实现 |
+| A5 专用生成脚本及合成文件测试 | 已实现；Ubuntu 服务器上 20 项测试全部通过 |
+| 使用 A5 脚本在真实源权重上执行 `--plan-only` | 已完成，通过；21,178 个张量、337 个分片、129,382,401,280 字节 |
 | E32 权重生成与全量有效数据哈希校验 | 待执行 |
 | 独立 safetensors 读取与 CPU 路由验证 | 待执行 |
 | A5 完整加载、推理、精度与性能验证 | 待执行 |
@@ -274,8 +294,8 @@ top-k 边界存在并列值时应记录比较策略，避免把并列顺序变�
 
 ### 6.3 后续执行顺序
 
-1. 按 MXFP 的 6 张量布局实现生成脚本，补齐异常输入及字节保持测试。
-2. 在共享盘源权重上运行计划扫描，确认与本报告计算结果一致。
+1. 生成脚本及合成测试已完成，覆盖 MXFP 布局、FP8 保留、路由切片、空分片省略、异常输入及文件保护。
+2. 共享盘真实源权重的计划扫描已完成，结果与本报告计算结果一致。
 3. 写出独立 E32 权重，完成全量字节校验及元数据验证。
 4. 完成独立 CPU 读取与路由检查，记录实际分片数、大小及耗时。
 5. 在已确认的 A5 环境加载并评测，将实际结果补入本报告。
