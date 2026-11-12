@@ -96,6 +96,12 @@ __aicore__ inline void WeightedAdd(const LocalTensor<float>& dst, const LocalTen
 // Each register load stays within a scores buffer padded to kVlFp32.
 // Active-lane reductions exclude padding for every R, including 9 and 65.
 __aicore__ inline void Softmax(const LocalTensor<float>& scores, const LocalTensor<float>& scalar, uint32_t count) {
+  // Keep the decode-sized softmax's exponential and reduction order consistent
+  // with the resident path before the final BF16 rounding boundary.
+  if (count <= RegBase::kVlFp32) {
+    RegBase::SoftmaxOneRegister(scores, count);
+    return;
+  }
   auto* values = (__local_mem__ float*)scores.GetPhyAddr();
   auto* stats = (__local_mem__ float*)scalar.GetPhyAddr();
   const uint16_t repeats = static_cast<uint16_t>((count + RegBase::kVlFp32 - 1) / RegBase::kVlFp32);
