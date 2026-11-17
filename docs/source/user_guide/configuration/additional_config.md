@@ -12,17 +12,6 @@ Starting from [PR #9064](https://github.com/vllm-project/vllm-ascend/pull/9064),
 - **Recommendation**: Use `--additional-config` for new deployments and migrate existing configurations
 - **Future Plan**: Environment variables will be **removed** in a future release; only `--additional-config` will be supported
 
-### Quick Reference
-
-| Environment Variable | Config Key | Type Conversion |
-|---------------------|------------|-----------------|
-| `VLLM_ASCEND_BALANCE_SCHEDULING` | `scheduler_config.enable_balance_scheduling` | `"1"` → `true`, `"0"` → `false` |
-| `MSMONITOR_USE_DAEMON` | `msmonitor_use_daemon` | `"1"` → `true`, `"0"` → `false` |
-| `VLLM_ASCEND_ENABLE_MLAPO` | `enable_mlapo` | `"1"` → `true`, `"0"` → `false` |
-| `VLLM_ASCEND_ENABLE_NZ` | `weight_nz_mode` | Integer (unchanged, field name changed) |
-| `VLLM_ASCEND_ENABLE_FUSED_MC2` | `enable_fused_mc2` | Integer (unchanged) |
-| `VLLM_ASCEND_FUSION_OP_TRANSPOSE_KV_CACHE_BY_BLOCK` | `enable_transpose_kv_cache_by_block` | `"1"` → `true`, `"0"` → `false` |
-
 ## How to use
 
 With either online mode or offline mode, users can use additional configuration. Take Qwen3 as an example:
@@ -61,8 +50,8 @@ The following table lists additional configuration options available in vLLM Asc
 | `enable_cpu_binding`                | bool | `True`  | Enables Ascend-native CPU binding on ARM servers. Set to `False` to disable. See [CPU Binding](../feature_guide/cpu_binding.md). |
 | `pa_shape_list`                     | list | `[]`    | The custom shape list of page attention ops.                                                              |
 | `enable_kv_nz`                      | bool | `False` | Whether to enable KV cache NZ layout. This option only takes effect on models using MLA (e.g., DeepSeek).                                      |
-| `mc2_comm_alg`                      | str  | `""`    | set dispatch/combine op's `comm_alg` param, only supports `""/"fullmesh"/"hierarchy"/"fullmesh_v2"`. `"hierarchy"` is only supported by A2/A3, and `"fullmesh_v2"` is only supported by A3 now. |
-| `enable_mc2_hierarchy_comm`         | bool | `False` | Enable dispatch/combine op inter-node communication by ROCE. This param will be deprecated and be replaced by mc2_comm_alg = "hierarchy" |
+| `mc2_comm_alg`                      | str  | `""`    | set dispatch/combine op's `comm_alg` param, only supports `""/"fullmesh"/"hierarchy"/"fullmesh_v2"`. `"hierarchy"` is supported by A2/A3/A5, and `"fullmesh_v2"` is only supported by A3 now. |
+| `enable_mc2_hierarchy_comm`         | bool | `False` | Set to true to select the same hierarchical dispatch/combine path as `mc2_comm_alg="hierarchy"`. This compatibility flag is deprecated. |
 | `enable_prefill_mc2`                | bool | `False` | Whether to reserve mc2_token_capacity for prefill batches. When enabled, `max_num_batched_tokens` is used to calculate the mc2_token_capacity instead of the decode-only capacity. In this scenario, the recommended maximum value of `max_num_batched_tokens` is `tp_size * 512`. This is a temporary switch; once MC2 operators are complete for all scenarios, this switch will be removed and MC2 will be enabled by default. |
 | `mega_moe_max_tokens`               | int  | `65536` | Reference per-rank token capacity after dispatch in the fused MC2/MegaMoe path. It is passed as `dispatch_ffn_combine`'s `max_output_size` and CANN MegaMoe buffer's `max_recv_token_num`. If a rank's actual MoE load exceeds this value, precision degradation may occur. The absolute safe upper bound is `num_max_tokens_per_rank * int(self.token_dispatcher.ep_world_size) * min(num_topk, expert_per_rank)`, but using it directly can consume very large device memory. Tune this value based on actual expert load distribution. |
 | `msmonitor_use_daemon`              | bool | `False` | Whether to use daemon mode for msmonitor. The legacy `MSMONITOR_USE_DAEMON` environment variable is no longer supported. |

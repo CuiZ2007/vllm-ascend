@@ -15,7 +15,7 @@
 # This file is a part of the vllm-ascend project.
 #
 
-FROM swr.cn-north-12.myhuaweicloud.com/atlas_inference/cann:9.2.0_20261025172600-910b-openeuler24.03-py3.12
+FROM quay.io/ascend/cann:9.2.1-910b-openeuler24.03-py3.12
 
 WORKDIR /workspace
 
@@ -92,8 +92,8 @@ ARG MOONCAKE_OBS_PREFIX="https://mindie.obs.cn-north-4.myhuaweicloud.com/buildto
 ARG HYBRID_OBS_BASE="https://obs-memfabric-hybrid.obs.cn-north-4.myhuaweicloud.com"
 ARG TORCH_NPU_OBS_BASE="https://pytorch-package.obs.cn-north-4.myhuaweicloud.com"
 ARG TRITON_ASCEND_URL_BASE="https://ascend-triton-open.obs.cn-north-4.myhuaweicloud.com/triton-ascend"
-ARG TRITON_ASCEND_VERSION="20261019175332"
-ARG TRITON_ASCEND_PACKAGE_VERSION="3.6.0"
+ARG TRITON_ASCEND_VERSION="20261028193430"
+ARG TRITON_ASCEND_PACKAGE_VERSION="3.6.0.post2"
 RUN case "${TARGETPLATFORM:-$(uname -m)}" in \
         "linux/amd64"|"x86_64") \
             ARCH_SUFFIX="x86_64"; \
@@ -119,14 +119,15 @@ RUN case "${TARGETPLATFORM:-$(uname -m)}" in \
 #     python3 -m pip install "$TRITON_ASCEND_URL" && \
 # Install mooncake-transfer-engine, memfabric_hybrid and memcache_hybrid
     wget -q --no-check-certificate "${MOONCAKE_OBS_PREFIX}/${MOONCAKE_WHL}" -P /tmp && \
-    python3 -m pip install "$MEMFABRIC_URL" "$MEMCACHE_URL" /tmp/${MOONCAKE_WHL} --force-reinstall --no-deps && \
+    python3 -m pip install /tmp/${MOONCAKE_WHL} --force-reinstall --no-deps && \
 # Install memfabric_hybrid kernels (A3/A5)
     case "${SOC_VERSION:-}" in \
-        ascend950dt_9582) TORCH_DEVICE_BACKEND_AUTOLOAD=0 mfcli kernel install --soc-version A5 ;; \
-        ascend910_9391) TORCH_DEVICE_BACKEND_AUTOLOAD=0 mfcli kernel install --soc-version A3 ;; \
+        ascend950dt_9582) TORCH_DEVICE_BACKEND_AUTOLOAD=0 mfcli kernel install --soc-version A5 --install-for-all ;; \
+        ascend910_9391) TORCH_DEVICE_BACKEND_AUTOLOAD=0 mfcli kernel install --soc-version A3 --install-for-all ;; \
+        ascend910b1) TORCH_DEVICE_BACKEND_AUTOLOAD=0 mfcli kernel install --soc-version A2 --install-for-all ;; \
     esac && \
 # Install flash-linear-attention-npu
-    URL="https://mirrors.huaweicloud.com/ascend/repos/pypi/flash_linear_attention_npu_a2/${FLA_WHL}" && \
+    URL="https://mirrors.huaweicloud.com/ascend/repos/pypi/flash-linear-attention-npu-a2/${FLA_WHL}" && \
     if [[ -n "${GIT_PROXY}" ]]; then \
       wget --quiet --proxy="${GIT_PROXY}" "${URL}" -O "/tmp/${FLA_WHL}"; \
     else \

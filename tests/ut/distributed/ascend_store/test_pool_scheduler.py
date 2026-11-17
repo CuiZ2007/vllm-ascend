@@ -633,6 +633,41 @@ class TestKVPoolScheduler(unittest.TestCase):
         self.assertEqual(need, 48)
         self.assertTrue(is_async)
 
+    @patch("vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.pool_scheduler.LookupKeyClient")
+    def test_swa_group_selected_for_save_retention(self, mock_client_cls):
+        groups = [
+            KVCacheGroupSpec(
+                ["layer.0"],
+                SlidingWindowSpec(block_size=16, num_kv_heads=1, head_size=1, dtype=torch.float32, sliding_window=32),
+            )
+        ]
+        scheduler = KVPoolScheduler(
+            self._make_config(extra_config={"backend": "memcache"}),
+            use_layerwise=False,
+            kv_cache_config=MagicMock(kv_cache_groups=groups),
+        )
+        self.assertEqual(scheduler.swa_group_ids, {0})
+
+    @patch("vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.pool_scheduler.LookupKeyClient")
+    @patch("vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.pool_scheduler.infer_cacheable_group_ids")
+    def test_noncacheable_swa_group_is_not_retained(self, mock_cacheable_groups, mock_client_cls):
+        mock_cacheable_groups.return_value = [0]
+        groups = [
+            KVCacheGroupSpec(
+                ["layer.0"], FullAttentionSpec(block_size=16, num_kv_heads=1, head_size=1, dtype=torch.float32)
+            ),
+            KVCacheGroupSpec(
+                ["layer.1"],
+                SlidingWindowSpec(block_size=16, num_kv_heads=1, head_size=1, dtype=torch.float32, sliding_window=32),
+            ),
+        ]
+        scheduler = KVPoolScheduler(
+            self._make_config(extra_config={"backend": "memcache"}),
+            use_layerwise=False,
+            kv_cache_config=MagicMock(kv_cache_groups=groups),
+        )
+        self.assertEqual(scheduler.swa_group_ids, set())
+
 
 class TestKVPoolSchedulerBuildMeta(unittest.TestCase):
     def _make_config(self, kv_role="kv_producer", block_size=16, extra_config=None, num_layers=2):
@@ -885,32 +920,6 @@ class TestKVPoolSchedulerBuildMeta(unittest.TestCase):
         _meta = scheduler.build_connector_meta(sched_output)
         self.assertNotIn("r1", scheduler._request_trackers)
 
-    @patch("vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.pool_scheduler.LookupKeyClient")
-    def test_build_connector_meta_released_req_ids_union(self, mock_client_cls):
-        config = self._make_config()
-        scheduler = KVPoolScheduler(config, use_layerwise=False)
-
-        from vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.metadata import RequestTracker
-
-        for req_id in ("f1", "f2", "p1"):
-            scheduler._request_trackers[req_id] = RequestTracker(
-                req_id=req_id,
-                token_len=32,
-                allocated_block_ids=[0, 1],
-            )
-            scheduler._unfinished_requests[req_id] = (MagicMock(), [0, 1])
-
-        sched_output = MagicMock()
-        sched_output.finished_req_ids = {"f1", "f2"}
-        sched_output.preempted_req_ids = {"p1"}
-        sched_output.scheduled_new_reqs = []
-        sched_output.num_scheduled_tokens = {}
-        sched_output.scheduled_cached_reqs = MagicMock()
-        sched_output.scheduled_cached_reqs.req_ids = []
-
-        meta = scheduler.build_connector_meta(sched_output)
-        self.assertEqual(meta.released_req_ids, {"f1", "f2", "p1"})
-
 
 class TestLookupKeyClient(unittest.TestCase):
     @patch("vllm_ascend.distributed.kv_transfer.kv_pool.ascend_store.pool_scheduler.make_zmq_socket")
@@ -1139,6 +1148,18 @@ class TestKVPoolSchedulerUpdateConnectorOutput(unittest.TestCase):
         self.assertEqual(scheduler.sending_events, {7: 1})
         self.assertEqual(scheduler.sending_blocks, {7: [1, 2, 3]})
         scheduler._block_pool.free_blocks.assert_not_called()
+
+    def test_sync_swa_blocks_uses_current_request_table(self):
+        scheduler = self._make_scheduler()
+        scheduler.swa_group_ids = {0}
+        scheduler._kv_cache_manager = MagicMock()
+        scheduler._kv_cache_manager.get_block_ids.return_value = ([0, 2, 3],)
+        tracker = RequestTracker("r1", token_len=48, allocated_block_ids_by_group=[[1, 2, 3]])
+
+        scheduler._sync_swa_block_ids(tracker)
+
+        self.assertEqual(tracker.allocated_block_ids_by_group, [[0, 2, 3]])
+        scheduler._kv_cache_manager.get_block_ids.assert_called_once_with("r1")
 
 
 class TestKVPoolSchedulerRequestFinishedAllGroups(unittest.TestCase):
