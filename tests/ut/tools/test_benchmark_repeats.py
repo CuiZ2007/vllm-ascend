@@ -59,7 +59,7 @@ def test_legacy_default_and_config_isolation():
 
 
 def test_real_yaml_expands_to_six_runs_and_520_answers():
-    paths = list(ROOT.glob("tests/**/Kimi-K3-W4A8-E256-A5-PD-Accuracy.yaml"))
+    paths = list(ROOT.glob("tests/**/Kimi-K3-W4A8-E256-A5-PD-Accu.yaml"))
     assert len(paths) == 1
     raw = yaml.safe_load(paths[0].read_text())
     cases = parse_cases(raw)
