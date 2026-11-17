@@ -3,7 +3,7 @@
 # Two A5 nodes: node 0 = Prefill, node 1 = Decode; TP8/EP8 per role.
 # Read Kimi-K3-W4A8-E256-A5-PD-README.md before running.
 # Performance warmup jobs only prime the service and have no metric gate.
-test_name: Kimi-K3-W4A8-E256-A5-PD-0.30.0-Accuracy
+test_name: Kimi-K3-W4A8-E256-A5-PD-0.30.0-Accu
 model: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
 num_nodes: 2
 npu_per_node: 8
