@@ -387,3 +387,13 @@ a5:
         os: linux-aarch64-a5-8
         config_file_path: Step3_7_Flash_W8A8_A5.yaml
         config_base_path: tests/SIT/cases/models/configs/Step
+  multi_node:
+    test_config:
+      - name: Kimi-K3-W4A8-E256-A5-PD-Accu
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Accu.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
+        size: 2
+      - name: Kimi-K3-W4A8-E256-A5-PD-Perf
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Perf.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
+        size: 2
