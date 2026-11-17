@@ -85,7 +85,7 @@ templates:
   - --max-model-len
   - '8192'
   - --max-num-seqs
-  - '16'
+  - '100'
   - --max-num-batched-tokens
   - '3072'
   - --enable-chunked-prefill
@@ -156,7 +156,7 @@ templates:
   - --max-model-len
   - '8192'
   - --max-num-seqs
-  - '16'
+  - '100'
   - --max-num-batched-tokens
   - '768'
   - --enable-chunked-prefill
