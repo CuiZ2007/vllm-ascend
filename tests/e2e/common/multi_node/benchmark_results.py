@@ -103,6 +103,10 @@ def build_task_entry(case_key: str, case_config: dict[str, Any], result: Any) ->
     entry: dict[str, Any] = {"name": task_name, "metrics": metrics, "test_input": test_input}
     if target:
         entry["target"] = target
+    if "repeat_index" in case_config:
+        entry["benchmark_name"] = case_config.get("benchmark_name", case_key)
+        entry["repeat_index"] = case_config["repeat_index"]
+        entry["repeat_count"] = case_config["repeat_count"]
     entry["pass_fail"] = "pass" if task_passed(case_config, result) else "fail"
     return entry
 
