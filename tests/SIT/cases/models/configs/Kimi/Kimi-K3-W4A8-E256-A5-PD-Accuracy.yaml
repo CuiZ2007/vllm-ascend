@@ -198,9 +198,9 @@ benchmarks:
     model_path: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
     request_conf: vllm_api_general_chat
     dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
-    num_prompts: 20
+    num_prompts: 100
     max_out_len: 1024
-    batch_size: 1
+    batch_size: 60
     temperature: 0
     top_p: 1.0
     seed: 42
