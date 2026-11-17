@@ -342,3 +342,13 @@ a5:
         os: linux-aarch64-a5-8
         config_file_path: DeepSeek_V31_Terminus_w4a8_w8a8_A5.yaml
         config_base_path: tests/e2e/cases/models/configs/DeepSeek
+  multi_node:
+    test_config:
+      - name: Kimi-K3-W4A8-E256-A5-PD-Accu
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Accu.yaml
+        config_base_path: tests/e2e/cases/models/configs/Kimi
+        size: 2
+      - name: Kimi-K3-W4A8-E256-A5-PD-Perf
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Perf.yaml
+        config_base_path: tests/e2e/cases/models/configs/Kimi
+        size: 2
