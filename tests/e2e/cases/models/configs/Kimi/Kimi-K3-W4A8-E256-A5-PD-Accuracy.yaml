@@ -83,7 +83,7 @@ templates:
   - '{"thinking_effort":"low"}'
   - --enforce-eager
   - --max-model-len
-  - '8192'
+  - '4096'
   - --max-num-seqs
   - '100'
   - --max-num-batched-tokens
@@ -154,7 +154,7 @@ templates:
   - '{"thinking_effort":"low"}'
   - --enforce-eager
   - --max-model-len
-  - '8192'
+  - '4096'
   - --max-num-seqs
   - '100'
   - --max-num-batched-tokens
