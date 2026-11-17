@@ -4,7 +4,7 @@
 # Read Kimi-K3-W4A8-E256-A5-PD-README.md before running.
 # baseline: null is intentional; replace it with a measured reference.
 # Performance warmup jobs only prime the service and have no metric gate.
-test_name: Kimi-K3-W4A8-E256-A5-PD-main-Performance
+test_name: Kimi-K3-W4A8-E256-A5-PD-main-Perf
 model: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
 num_nodes: 2
 npu_per_node: 8
