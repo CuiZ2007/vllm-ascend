@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import shlex
 import subprocess
 import tempfile
 import time
@@ -28,6 +29,8 @@ import huggingface_hub
 import pandas as pd
 import regex as re
 from modelscope import snapshot_download  # type: ignore
+
+from tools.benchmark_repeats import prepare_repeat_artifacts, record_repeat_result, write_repeat_summary
 
 BENCHMARK_HOME = os.getenv("BENCHMARK_HOME", os.path.abspath("./benchmark"))
 DATASET_CONF_DIR = os.path.join(BENCHMARK_HOME, "ais_bench", "benchmark", "configs", "datasets")
@@ -65,12 +68,17 @@ class AisbenchRunner:
         if self.num_prompts:
             aisbench_cmd.extend(["--num-prompts", str(self.num_prompts)])
         self.stdout_file = f"output_{self.task_type}.txt"
-        aisbench_cmd = " ".join(aisbench_cmd) + f" --debug > {self.stdout_file} 2>&1 &"
+        if self.benchmark_work_dir:
+            directory = Path(self.benchmark_work_dir)
+            aisbench_cmd.extend(["--work-dir", str(directory / "outputs")])
+            self.stdout_file = str(directory / self.stdout_file)
+        aisbench_cmd = shlex.join(aisbench_cmd) + f" --debug > {shlex.quote(self.stdout_file)} 2>&1 &"
         print(f"running aisbench cmd: {aisbench_cmd}")
         self.proc: subprocess.Popen = subprocess.Popen(aisbench_cmd, shell=True)
 
     def __init__(self, model: str, port: int, aisbench_config: dict, host_ip: str = "localhost", verify=True):
         self.model = model
+        self.benchmark_work_dir = aisbench_config.get("benchmark_work_dir")
         self.dataset_path = aisbench_config.get("dataset_path_local")
         if not self.dataset_path:
             self.dataset_path = maybe_download_from_modelscope(aisbench_config["dataset_path"], repo_type="dataset")
@@ -235,7 +243,7 @@ class AisbenchRunner:
 
     def _check_runtime_stdout(self):
         time.sleep(5)
-        cmd = f"tail -100 {self.stdout_file}"
+        cmd = f"tail -100 {shlex.quote(self.stdout_file)}"
         return subprocess.check_output(cmd, shell=True).decode()
 
     @staticmethod
@@ -332,6 +340,7 @@ class _MetricsServer:
 
 
 def run_aisbench_cases(model, port, aisbench_cases, server_args="", host_ip="localhost"):
+    aisbench_cases = prepare_repeat_artifacts(list(aisbench_cases))
     aisbench_results = []
     aisbench_errors = []
     total = sum(1 for c in aisbench_cases if c)
@@ -348,12 +357,15 @@ def run_aisbench_cases(model, port, aisbench_cases, server_args="", host_ip="loc
         try:
             with AisbenchRunner(model=model, port=port, host_ip=host_ip, aisbench_config=aisbench_case) as aisbench:
                 aisbench_results.append(aisbench.result)
+            record_repeat_result(aisbench_case, aisbench_results[-1])
             logging.info("[%d/%d] Finished benchmark: %s", idx, total, case_name)
         except Exception as e:
+            record_repeat_result(aisbench_case, error=e)
             aisbench_results.append("")
             aisbench_errors.append([aisbench_case, e])
             logging.error("[%d/%d] Benchmark failed: %s, reason: %s", idx, total, case_name, e)
             print(e)
+    write_repeat_summary(aisbench_cases)
     for failed_case, error_info in aisbench_errors:
         error_msg = f"The following aisbench case failed: {failed_case}, reason is {error_info}"
         if server_args:

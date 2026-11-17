@@ -177,6 +177,7 @@ templates:
   - '{"kv_connector":"MooncakeConnectorV2","kv_role":"kv_consumer","kv_port":"30100","kv_connector_extra_config":{"prefill":{"dp_size":1,"tp_size":8},"decode":{"dp_size":1,"tp_size":8}}}'
 benchmarks:
   gsm8k_first20_c1:
+    repeat_count: 1
     case_type: accuracy
     dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
     dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
@@ -192,6 +193,7 @@ benchmarks:
     baseline: 50
     threshold: 50
   gsm8k_first100_c60:
+    repeat_count: 5
     case_type: accuracy
     dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
     dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
