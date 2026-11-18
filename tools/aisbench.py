@@ -31,6 +31,7 @@ import regex as re
 from modelscope import snapshot_download  # type: ignore
 
 from tools.benchmark_repeats import prepare_repeat_artifacts, record_repeat_result, write_repeat_summary
+from tools.fixed_input import append_fixed_input_config, fixed_input_options, validate_fixed_input_artifacts
 
 BENCHMARK_HOME = os.getenv("BENCHMARK_HOME", os.path.abspath("./benchmark"))
 DATASET_CONF_DIR = os.path.join(BENCHMARK_HOME, "ais_bench", "benchmark", "configs", "datasets")
@@ -74,7 +75,12 @@ class AisbenchRunner:
             self.stdout_file = str(directory / self.stdout_file)
         aisbench_cmd = shlex.join(aisbench_cmd) + f" --debug > {shlex.quote(self.stdout_file)} 2>&1 &"
         print(f"running aisbench cmd: {aisbench_cmd}")
-        self.proc: subprocess.Popen = subprocess.Popen(aisbench_cmd, shell=True)
+        env = None
+        if getattr(self, "fixed_input_tokens", None) is not None:
+            env = os.environ.copy()
+            repo_root = str(Path(__file__).resolve().parents[1])
+            env["PYTHONPATH"] = os.pathsep.join(filter(None, (repo_root, env.get("PYTHONPATH", ""))))
+        self.proc: subprocess.Popen = subprocess.Popen(aisbench_cmd, shell=True, env=env)
 
     def __init__(self, model: str, port: int, aisbench_config: dict, host_ip: str = "localhost", verify=True):
         self.model = model
@@ -91,6 +97,12 @@ class AisbenchRunner:
         self.port = port
         self.host_ip = host_ip
         self.task_type = aisbench_config["case_type"]
+        self.fixed_input_tokens, self.tokenizer_mode = fixed_input_options(aisbench_config)
+        self.fixed_input_artifact_dir = None
+        if self.fixed_input_tokens is not None:
+            if self.benchmark_work_dir:
+                Path(self.benchmark_work_dir).mkdir(parents=True, exist_ok=True)
+            self.fixed_input_artifact_dir = tempfile.mkdtemp(prefix="fixed-input-", dir=self.benchmark_work_dir)
         self.request_conf = aisbench_config["request_conf"]
         self.dataset_conf = aisbench_config.get("dataset_conf")
         self.num_prompts = aisbench_config.get("num_prompts")
@@ -123,6 +135,8 @@ class AisbenchRunner:
             self.metrics_baseline = capture_baseline(self.metrics_server, len(self.spec_decode_baseline))
         self._run_aisbench_task()
         self._wait_for_task()
+        if self.fixed_input_artifact_dir is not None:
+            validate_fixed_input_artifacts(self.fixed_input_artifact_dir, self.num_prompts)
         if verify:
             self.baseline = aisbench_config.get("baseline", 1)
             if self.task_type == "accuracy":
@@ -205,6 +219,12 @@ class AisbenchRunner:
             content = re.sub(r"temperature.*", f"temperature={self.temperature},", content)
         if self.no_pred:
             content = re.sub(r"pred_postprocessor.*", "#pred_postprocessor", content)
+        content = append_fixed_input_config(
+            content,
+            getattr(self, "fixed_input_tokens", None),
+            getattr(self, "tokenizer_mode", "auto"),
+            getattr(self, "fixed_input_artifact_dir", None),
+        )
         conf_path_new = os.path.join(REQUEST_CONF_DIR, f"{self.request_conf}_custom.py")
         with open(conf_path_new, "w", encoding="utf-8") as f:
             f.write(content)

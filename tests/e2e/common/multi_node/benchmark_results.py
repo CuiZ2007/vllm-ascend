@@ -91,7 +91,14 @@ def build_task_entry(case_key: str, case_config: dict[str, Any], result: Any) ->
             except (ValueError, AttributeError):
                 pass
 
-    test_input_keys = ("num_prompts", "max_out_len", "batch_size", "request_rate")
+    test_input_keys = (
+        "num_prompts",
+        "max_out_len",
+        "batch_size",
+        "request_rate",
+        "fixed_input_tokens",
+        "tokenizer_mode",
+    )
     test_input = {key: case_config[key] for key in test_input_keys if key in case_config}
 
     target: dict[str, Any] = {}
