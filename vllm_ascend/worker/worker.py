@@ -82,6 +82,7 @@ from vllm.v1.worker.workspace import init_workspace_manager
 import vllm_ascend.envs as envs_ascend
 from vllm_ascend.ascend_config import KVPPConfig, get_ascend_config, init_ascend_config
 from vllm_ascend.batch_invariant import init_batch_invariance
+from vllm_ascend.core import kv_cache_dtype_handlers  # noqa: F401
 from vllm_ascend.core.kv_cache_placement import (
     KVPPPhysicalCachePlan,
     create_kvpp_cache_allocation_plan,
@@ -289,6 +290,9 @@ class NPUWorker(WorkerBase):
             if not matches:
                 raise ValueError(f"No parameter matches sleep retention: {pattern}")
             names.update(matches)
+        meta_names = [name for name in names if parameters[name].device.type == "meta"]
+        if meta_names:
+            raise ValueError(f"Sleep retention cannot snapshot meta parameters: {', '.join(sorted(meta_names))}")
         self._sleep_saved_parameters = {
             name: param.detach().to("cpu") for name, param in parameters.items() if name in names and not param.is_cpu
         }
@@ -752,7 +756,7 @@ class NPUWorker(WorkerBase):
             self.available_kv_cache_memory_bytes,
         )
 
-        extra_config = get_layerwise_reuse_config(self.vllm_config.kv_transfer_config)
+        extra_config = get_layerwise_reuse_config(self.vllm_config.kv_transfer_config, vllm_config=self.vllm_config)
         if extra_config is not None:
             memory_info = getattr(self, "_gva_layerwise_memory_info", None)
             if memory_info is None:
@@ -841,7 +845,13 @@ class NPUWorker(WorkerBase):
         # TODO: The Step-3.5/3.7 models will be sunset in the future. Once they
         # are, remove this is_step_model exemption: this line and the
         # `or is_step_model` budget gate below.
-        is_step_model = self.model_config.hf_text_config.model_type in ("step3p5", "step3p7")
+        is_step_model = self.model_config.hf_text_config.model_type in (
+            "step3p5",
+            "step3p7",
+            "step5",
+            "step5_vl",
+            "step5_mtp",
+        )
         if (
             has_attention
             and (has_mamba or is_step_model or shares_attention_pool)
@@ -1214,7 +1224,7 @@ class NPUWorker(WorkerBase):
 
     def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
         kv_cache_spec = self.model_runner.get_kv_cache_spec()
-        extra_config = get_layerwise_reuse_config(self.vllm_config.kv_transfer_config)
+        extra_config = get_layerwise_reuse_config(self.vllm_config.kv_transfer_config, vllm_config=self.vllm_config)
         if extra_config is not None:
             speculator = getattr(self.model_runner, "speculator", None)
             speculative = self.vllm_config.speculative_config
@@ -1290,7 +1300,8 @@ class NPUWorker(WorkerBase):
             and speculator is not None
             and (
                 uses_sfa_dspark_kv_transfer(self.vllm_config)
-                or get_layerwise_reuse_config(self.vllm_config.kv_transfer_config) is not None
+                or get_layerwise_reuse_config(self.vllm_config.kv_transfer_config, vllm_config=self.vllm_config)
+                is not None
             )
         ):
             # Connector construction must see loader-owned draft caches before
