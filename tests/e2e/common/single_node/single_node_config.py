@@ -8,6 +8,7 @@ import yaml
 from vllm.utils.network_utils import get_open_port
 
 from tests.e2e.common.kv_pool.config import KVPoolConfig, parse_kv_pool_config
+from tests.e2e.common.single_node.benchmark_repeats import expand_benchmark_repeats
 
 CONFIG_BASE_PATH = os.getenv("CONFIG_BASE_PATH") or "tests/SIT/cases/models/configs/Kimi"
 
@@ -219,7 +220,7 @@ class SingleNodeConfigLoader:
                     epd_proxy_args=case.get("epd_proxy_args", []),
                     pd_server_cmds=case.get("pd_server_cmds", []),
                     pd_server_envs=case.get("pd_server_envs", []),
-                    benchmarks=case.get("benchmarks", {}),
+                    benchmarks=expand_benchmark_repeats(case.get("benchmarks", {})),
                     prompts=case.get("prompts", PROMPTS),
                     api_keyword_args=case.get("api_keyword_args", API_KEYWORD_ARGS),
                     test_content=case.get("test_content", ["completion"]),
