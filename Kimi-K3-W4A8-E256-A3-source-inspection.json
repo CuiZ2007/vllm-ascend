@@ -1,0 +1,112 @@
+{
+  "source": "/mnt/share/c30087248/weights/Eco-Tech/Kimi-K3-w4a8",
+  "config": {
+    "num_experts": 896,
+    "num_hidden_layers": 93,
+    "num_experts_per_token": 16,
+    "num_shared_experts": 2,
+    "hidden_size": 7168,
+    "moe_intermediate_size": 3072,
+    "routed_expert_hidden_size": 3584,
+    "num_expert_group": 1,
+    "topk_group": 1,
+    "first_k_dense_replace": 1,
+    "moe_layer_freq": 1
+  },
+  "stats": {
+    "source_tensors": 993297,
+    "source_bytes": 1466368801536,
+    "output_tensors": 286737,
+    "output_bytes": 473582169856,
+    "removed_tensors": 706560
+  },
+  "output_shards": 345,
+  "layouts": {
+    "w1.scale_bias": {
+      "[\"F32\", [3072, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w1.weight_offset": {
+      "[\"F32\", [3072, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w1.weight_scale": {
+      "[\"F32\", [3072, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w2.scale_bias": {
+      "[\"F32\", [3584, 16], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w2.weight_offset": {
+      "[\"F32\", [3584, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w2.weight_scale": {
+      "[\"F32\", [3584, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w3.scale_bias": {
+      "[\"F32\", [3072, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w3.weight_offset": {
+      "[\"F32\", [3072, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w3.weight_scale": {
+      "[\"F32\", [3072, 1], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w1.weight": {
+      "[\"I8\", [1536, 3584], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w2.weight": {
+      "[\"I8\", [1792, 3072], \"W4A8_DYNAMIC\"]": 82432
+    },
+    "w3.weight": {
+      "[\"I8\", [1536, 3584], \"W4A8_DYNAMIC\"]": 82432
+    }
+  },
+  "router_layouts": {
+    "[\"e_score_correction_bias\", \"BF16\", [896]]": 92,
+    "[\"weight\", \"BF16\", [896, 7168]]": 92
+  },
+  "expert_pairs": 82432,
+  "all_experts_have_12": true,
+  "quant_globals": {
+    "group_size": 0,
+    "metadata": {},
+    "model_quant_type": "W8A8_DYNAMIC",
+    "optional": {
+      "quarot": {
+        "rotation_map": {
+          "global_rotation": "optional/quarot.safetensors"
+        }
+      }
+    },
+    "version": "1.0.0"
+  },
+  "optional_files": [
+    "optional/quarot.safetensors"
+  ],
+  "keep_ids_first": [
+    0,
+    3,
+    7,
+    10,
+    14,
+    17,
+    21,
+    24,
+    28,
+    31,
+    35,
+    38
+  ],
+  "keep_ids_last": [
+    854,
+    857,
+    861,
+    864,
+    868,
+    871,
+    875,
+    878,
+    882,
+    885,
+    889,
+    892
+  ]
+}
