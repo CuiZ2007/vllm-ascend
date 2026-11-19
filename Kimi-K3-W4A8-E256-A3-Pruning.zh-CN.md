@@ -36,8 +36,8 @@
 | 用途 | 当前共享盘路径 |
 | --- | --- |
 | 原始权重 | `/mnt/share/c30087248/weights/Eco-Tech/Kimi-K3-w4a8` |
-| 建议输出 | `/mnt/share/c30087248/weights/Kimi-K3-w4a8-experts256` |
-| 临时输出 | `/mnt/share/c30087248/weights/Kimi-K3-w4a8-experts256.partial` |
+| 建议输出 | `/mnt/share/c30087248/weights/CuiZ2007/Kimi-K3-w4a8-experts256` |
+| 临时输出 | `/mnt/share/c30087248/weights/CuiZ2007/Kimi-K3-w4a8-experts256.partial` |
 | 工作目录 | `/mnt/share/c30087248/pruning-runs/kimi-k3-a3-w4a8-ep256` |
 
 输出与已存在的 `Kimi-K3-w4a8-mxfp-QuaRot-experts256` 分开存放。

@@ -23,7 +23,7 @@ python -m pip install safetensors numpy regex
 ```bash
 python tools/kimi_k3/prune_experts_a3.py \
   --src /mnt/share/c30087248/weights/Eco-Tech/Kimi-K3-w4a8 \
-  --dst /mnt/share/c30087248/weights/Kimi-K3-w4a8-experts256.partial \
+  --dst /mnt/share/c30087248/weights/CuiZ2007/Kimi-K3-w4a8-experts256.partial \
   --work /mnt/share/c30087248/pruning-runs/kimi-k3-a3-w4a8-ep256 \
   --keep-experts 256 --mode plan
 ```
@@ -39,7 +39,7 @@ python tools/kimi_k3/prune_experts_a3.py \
 ```bash
 python tools/kimi_k3/prune_experts_a3.py \
   --src /mnt/share/c30087248/weights/Eco-Tech/Kimi-K3-w4a8 \
-  --dst /mnt/share/c30087248/weights/Kimi-K3-w4a8-experts256.partial \
+  --dst /mnt/share/c30087248/weights/CuiZ2007/Kimi-K3-w4a8-experts256.partial \
   --work /mnt/share/c30087248/pruning-runs/kimi-k3-a3-w4a8-ep256 \
   --keep-experts 256 --mode run --workers 1
 ```
