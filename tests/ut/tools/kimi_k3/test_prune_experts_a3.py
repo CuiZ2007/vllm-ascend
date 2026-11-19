@@ -5,10 +5,14 @@ import hashlib
 import importlib.util
 import json
 import struct
+import subprocess
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[4] / "tools/kimi_k3/prune_experts_a3.py"
 SPEC = importlib.util.spec_from_file_location("k3_a3_pruner", SCRIPT)
@@ -111,6 +115,97 @@ class ExpertPruneTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 256)
         self.assertEqual(set(remap.values()), set(range(256)))
         self.assertNotIn(895, remap)
+
+    def test_output_lock_blocks_other_process_with_different_work(self):
+        dst = self.root / "output"
+        program = (
+            "import importlib.util,sys; from types import SimpleNamespace; "
+            "s=importlib.util.spec_from_file_location('pruner',sys.argv[1]); "
+            "p=importlib.util.module_from_spec(s); s.loader.exec_module(p); "
+            "p.run(SimpleNamespace(dst=sys.argv[2],work=sys.argv[3]))"
+        )
+        with p.output_lock(dst):
+            result = subprocess.run(
+                [sys.executable, "-c", program, str(SCRIPT), str(dst), str(self.root / "other-work")],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("BlockingIOError", result.stderr)
+        with p.output_lock(dst):
+            self.assertTrue(dst.with_name(dst.name + ".lock").is_file())
+
+    def test_symlink_lock_rejected(self):
+        dst = self.root / "output"
+        target = self.root / "unrelated"
+        target.write_text("unchanged")
+        dst.with_name(dst.name + ".lock").symlink_to(target)
+        with self.assertRaises(OSError), p.output_lock(dst):
+            self.fail("symlink lock acquired")
+        self.assertEqual(target.read_text(), "unchanged")
+
+    def small_job(self):
+        src, dst, ids, shard, _ = self.make_fixture()
+        plan = {
+            "plan_sha256": "fixture-plan",
+            "keep_ids": ids,
+            "keep_experts": 256,
+            "shards": [shard],
+            "assets": [],
+            "output_payload_bytes": sum(x["size"] for x in shard["items"]),
+            "output_tensors": len(shard["items"]),
+        }
+        args = SimpleNamespace(
+            src=str(src), dst=str(dst), work=str(self.root / "work"), keep_experts=256, mode="run", workers=1
+        )
+        return dst, plan, args
+
+    def test_completion_write_failure_can_resume(self):
+        dst, plan, args = self.small_job()
+        original = p.atomic_json
+
+        def fail_complete(path, value):
+            if path.name == "PRUNING_COMPLETE.json":
+                raise OSError("injected completion failure")
+            original(path, value)
+
+        with (
+            patch.object(p, "build_plan", return_value=plan),
+            patch.object(p, "validate_final", return_value={"status": "passed"}),
+        ):
+            with (
+                patch.object(p, "atomic_json", side_effect=fail_complete),
+                self.assertRaisesRegex(OSError, "injected completion"),
+            ):
+                p.run(args)
+            self.assertTrue((dst / "PRUNING_INCOMPLETE").exists())
+            self.assertFalse((dst / "PRUNING_COMPLETE.json").exists())
+            p.run(args)
+        self.assertFalse((dst / "PRUNING_INCOMPLETE").exists())
+        self.assertTrue((dst / "PRUNING_COMPLETE.json").exists())
+
+    def test_interruption_with_both_markers_revalidates(self):
+        dst, plan, args = self.small_job()
+        original = Path.unlink
+
+        def fail_marker(path, *a, **kw):
+            if path.name == "PRUNING_INCOMPLETE":
+                raise OSError("injected marker removal failure")
+            return original(path, *a, **kw)
+
+        with (
+            patch.object(p, "build_plan", return_value=plan),
+            patch.object(p, "validate_final", return_value={"status": "passed"}) as validate,
+        ):
+            with patch.object(Path, "unlink", fail_marker), self.assertRaisesRegex(OSError, "marker removal"):
+                p.run(args)
+            self.assertTrue((dst / "PRUNING_INCOMPLETE").exists())
+            self.assertTrue((dst / "PRUNING_COMPLETE.json").exists())
+            p.run(args)
+            self.assertEqual(validate.call_count, 2)
+        self.assertFalse((dst / "PRUNING_INCOMPLETE").exists())
+        self.assertEqual(p.read_json(dst / "PRUNING_COMPLETE.json")["plan_sha256"], plan["plan_sha256"])
 
     def test_copy_remove_rename_router_and_verify(self):
         src, dst, ids, sh, expected = self.make_fixture()

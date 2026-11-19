@@ -6,6 +6,7 @@
 import argparse
 import collections
 import copy
+import fcntl
 import hashlib
 import json
 import math
@@ -16,6 +17,7 @@ import threading
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 import regex as re
@@ -44,6 +46,35 @@ DTYPE_BYTES = {
     "F8_E8M0": 1,
 }
 CHUNK = 8 * 1024 * 1024
+
+
+@contextmanager
+def output_lock(dst):
+    # A stable sibling lock serializes writers even when their work directories differ.
+    path = dst.with_name(dst.name + ".lock")
+    flags = os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW
+    with os.fdopen(os.open(path, flags, 0o600), "a") as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            yield
+        finally:
+            fcntl.flock(stream, fcntl.LOCK_UN)
+    # Keep the inode: unlinking a flock file can let competing writers lock different inodes.
+
+
+def finish_output(dst, result):
+    atomic_json(dst / "PRUNING_COMPLETE.json", result)
+    sync_directory(dst)
+    (dst / "PRUNING_INCOMPLETE").unlink()
+    sync_directory(dst)
+
+
+def sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def require(ok, message):
@@ -492,6 +523,14 @@ def validate_final(dst, src, plan, asset_hashes):
 
 
 def run(args):
+    dst = Path(args.dst).absolute()
+    require(not any(p.is_symlink() for p in (dst, *dst.parents)), "symlink output path forbidden")
+    require(dst.parent.is_dir(), "output parent directory must exist")
+    with output_lock(dst.resolve()):
+        run_locked(args)
+
+
+def run_locked(args):
     src = Path(args.src).resolve()
     dst = Path(args.dst).resolve()
     work = Path(args.work).resolve()
@@ -511,8 +550,6 @@ def run(args):
     )
     work.mkdir(parents=True, exist_ok=True)
     (work / "manifests/shards").mkdir(parents=True, exist_ok=True)
-    import fcntl
-
     lock = open(work / "job.lock", "a")  # noqa: SIM115 -- held until the function finally block
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     start = time.time()
@@ -567,6 +604,13 @@ def run(args):
             require(not any(dst.iterdir()), "non-empty output without ownership marker")
             marker.write_text(plan["plan_sha256"] + "\n")
         require(marker.read_text().strip() == plan["plan_sha256"], "output belongs to another plan")
+        complete = dst / "PRUNING_COMPLETE.json"
+        if complete.exists():
+            require(read_json(complete).get("plan_sha256") == plan["plan_sha256"], "completion belongs to another plan")
+            # A previous process stopped between writing completion and removing the marker.
+            # Clear completion before revalidation so a failed resume cannot advertise success.
+            complete.unlink()
+            sync_directory(dst)
         expected_files = {s["output"] for s in plan["shards"]}
         require(
             not any(
@@ -674,8 +718,7 @@ def run(args):
                 "validation": result,
             },
         )
-        marker.unlink()
-        atomic_json(dst / "PRUNING_COMPLETE.json", result)
+        finish_output(dst, result)
         progress({"phase": "completed", **result})
     except BaseException as e:
         progress({"phase": "failed", "error": repr(e)})
