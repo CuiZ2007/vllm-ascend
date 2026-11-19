@@ -1,10 +1,11 @@
 # One A3 node, 16 NPUs: TP16 / DP1 / EP16, mixed prefill/decode.
-# Reference: Kimi-K3-MRV2-A3.yaml (model options and GPQA settings).
+# Model options: Kimi-K3-MRV2-A3.yaml.
+# GSM8K accuracy evaluator: Qwen3-32B-W8A8C8-A3.yaml.
 # Set model to the absolute directory of the pruned checkpoint before running.
 # The checkpoint must already contain 256 experts and matching quantization metadata.
 # No speculative model is needed: evaluate the pruned target model directly.
 test_cases:
-  - name: "Kimi-K3-W4A8-Experts256-A3-GPQA"
+  - name: "Kimi-K3-W4A8-Experts256-A3-GSM8K"
     model: "Kimi-K3-w4a8-experts256"
     envs:
       VLLM_USE_V2_MODEL_RUNNER: "1"
@@ -59,19 +60,18 @@ test_cases:
       - "kimi_k3"
     test_content: []
     benchmarks:
-      acc_gpqa:
+      acc_gsm8k:
         case_type: accuracy
-        dataset_path: vllm-ascend/gpqa
+        dataset_path: vllm-ascend/gsm8k
         request_conf: vllm_api_general_chat
-        dataset_conf: gpqa/gpqa_gen_0_shot_cot_chat_prompt
-        # Match the existing K3 case's sample count for initial comparison.
-        num_prompts: 30
+        dataset_conf: gsm8k/gsm8k_gen_0_shot_noncot_chat_prompt
+        # Evaluate the full dataset; no num_prompts subsampling.
         max_out_len: 24576
         batch_size: 4
         thinking: true
         temperature: 1.0
         top_p: 0.95
-        # Reference-model baseline, NOT a measured experts256 result.
+        # Provisional acceptance target, NOT a measured GSM8K result.
         # Recalibrate baseline and tolerance after the first validated run.
         baseline: 93
         threshold: 3
