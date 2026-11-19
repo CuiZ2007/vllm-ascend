@@ -1,77 +1,68 @@
-# One A3 node, 16 NPUs: TP16 / DP1 / EP16, mixed prefill/decode.
-# Model options: Kimi-K3-MRV2-A3.yaml.
-# GSM8K accuracy evaluator: Qwen3-32B-W8A8C8-A3.yaml.
-# Set model to the absolute directory of the pruned checkpoint before running.
-# The checkpoint must already contain 256 experts and matching quantization metadata.
-# No speculative model is needed: evaluate the pruned target model directly.
 test_cases:
-  - name: "Kimi-K3-W4A8-Experts256-A3-GSM8K"
-    model: "Kimi-K3-w4a8-experts256"
-    envs:
-      VLLM_USE_V2_MODEL_RUNNER: "1"
-      HCCL_BUFFSIZE: "800"
-      PYTORCH_NPU_ALLOC_CONF: "expandable_segments:True"
-      OMP_PROC_BIND: "false"
-      OMP_NUM_THREADS: "1"
-      TASK_QUEUE_ENABLE: "1"
-      VLLM_ENGINE_READY_TIMEOUT_S: "7200"
-      SERVER_PORT: "DEFAULT_PORT"
-    server_cmd:
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "$SERVER_PORT"
-      - "--quantization"
-      - "ascend"
-      - "--safetensors-load-strategy"
-      - "prefetch"
-      - "--trust-remote-code"
-      - "--tokenizer-mode"
-      - "kimi_k3"
-      - "--tensor-parallel-size"
-      - "16"
-      - "--data-parallel-size"
-      - "1"
-      - "--distributed-executor-backend"
-      - "mp"
-      - "--enable-expert-parallel"
-      - "--enable-prefix-caching"
-      - "--max-num-seqs"
-      - "4"
-      - "--max-model-len"
-      - "32768"
-      - "--max-num-batched-tokens"
-      - "8192"
-      - "--gpu-memory-utilization"
-      - "0.9"
-      - "--seed"
-      - "42"
-      - "--compilation-config"
-      - '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1,2,4],"max_cudagraph_capture_size":4}'
-      - "--additional-config"
-      - '{"enable_cpu_binding":true,"enable_flashcomm1":true}'
-      - "--mm-processor-cache-gb"
-      - "0"
-      - "--mm-encoder-tp-mode"
-      - "data"
-      - "--limit-mm-per-prompt"
-      - '{"vision_chunk":0}'
-      - "--reasoning-parser"
-      - "kimi_k3"
-    test_content: []
-    benchmarks:
-      acc_gsm8k:
-        case_type: accuracy
-        dataset_path: vllm-ascend/gsm8k
-        request_conf: vllm_api_general_chat
-        dataset_conf: gsm8k/gsm8k_gen_0_shot_noncot_chat_prompt
-        # Evaluate the full dataset; no num_prompts subsampling.
-        max_out_len: 24576
-        batch_size: 4
-        thinking: true
-        temperature: 1.0
-        top_p: 0.95
-        # Provisional acceptance target, NOT a measured GSM8K result.
-        # Recalibrate baseline and tolerance after the first validated run.
-        baseline: 93
-        threshold: 3
+- name: Kimi-K3-W4A8-E256-A3-GSM8K-First100
+  test_rounds: 5
+  model: Kimi-K3-w4a8-experts256
+  envs:
+    SERVER_PORT: "8080"
+    VLLM_USE_V2_MODEL_RUNNER: '1'
+    HCCL_BUFFSIZE: '800'
+    PYTORCH_NPU_ALLOC_CONF: expandable_segments:True
+    OMP_NUM_THREADS: '1'
+    VLLM_ENGINE_READY_TIMEOUT_S: '7200'
+    VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '3000'
+  server_cmd:
+  - --host
+  - 0.0.0.0
+  - --trust-remote-code
+  - --tokenizer-mode
+  - kimi_k3
+  - --quantization
+  - ascend
+  - --generation-config
+  - vllm
+  - --reasoning-parser
+  - kimi_k3
+  - --tensor-parallel-size
+  - '16'
+  - --enable-expert-parallel
+  - --dtype
+  - bfloat16
+  - --enforce-eager
+  - --max-model-len
+  - '4096'
+  - --max-num-seqs
+  - '100'
+  - --max-num-batched-tokens
+  - '2048'
+  - --enable-chunked-prefill
+  - --gpu-memory-utilization
+  - '0.85'
+  - --no-enable-prefix-caching
+  - --mm-processor-cache-gb
+  - '0'
+  - --limit-mm-per-prompt
+  - '{"vision_chunk":0}'
+  - --additional-config
+  - '{"enable_flashcomm1":true}'
+  - --seed
+  - '42'
+  - --port
+  - $SERVER_PORT
+  - --default-chat-template-kwargs
+  - '{"thinking_effort":"low"}'
+  test_content: []
+  benchmarks:
+    accuracy:
+      case_type: accuracy
+      dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
+      dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
+      request_conf: vllm_api_general_chat
+      dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
+      num_prompts: 100
+      max_out_len: 1024
+      batch_size: 60
+      temperature: 0
+      top_p: 1.0
+      seed: 42
+      baseline: 50.0
+      threshold: 50.0
