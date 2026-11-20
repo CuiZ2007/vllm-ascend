@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import shlex
 import subprocess
 import tempfile
 import time
@@ -29,6 +30,9 @@ import pandas as pd
 import regex as re
 from modelscope import snapshot_download  # type: ignore
 
+from tools.benchmark_repeats import prepare_repeat_artifacts, record_repeat_result, write_repeat_summary
+from tools.fixed_input import append_fixed_input_config, fixed_input_options, validate_fixed_input_artifacts
+from tools.functional_requests import FunctionalRunner
 from tools.profiling import safe_name
 from tools.profiling.capture import (
     ProfileController,
@@ -78,23 +82,36 @@ class AisbenchRunner:
         if self.num_prompts:
             aisbench_cmd.extend(["--num-prompts", str(self.num_prompts)])
         self.stdout_file = f"output_{self.task_type}.txt"
-        aisbench_cmd = " ".join(aisbench_cmd) + f" --debug > {self.stdout_file} 2>&1 &"
+        if self.benchmark_work_dir:
+            directory = Path(self.benchmark_work_dir)
+            aisbench_cmd.extend(["--work-dir", str(directory / "outputs")])
+            self.stdout_file = str(directory / self.stdout_file)
+        aisbench_cmd = shlex.join(aisbench_cmd) + f" --debug > {shlex.quote(self.stdout_file)} 2>&1 &"
         print(f"running aisbench cmd: {aisbench_cmd}")
         env = None
-        if self.profile_marker is not None:
+        if self.profile_marker is not None or getattr(self, "fixed_input_tokens", None) is not None:
             env = os.environ.copy()
             repo_root = str(Path(__file__).resolve().parents[1])
             env["PYTHONPATH"] = os.pathsep.join(filter(None, (repo_root, env.get("PYTHONPATH", ""))))
-            env["ASCEND_PROFILE_REQUEST_MARKER"] = str(self.profile_marker)
-            env["ASCEND_PROFILE_ENABLED"] = str(bool(self.profile_targets)).lower()
+            if self.profile_marker is not None:
+                env["ASCEND_PROFILE_REQUEST_MARKER"] = str(self.profile_marker)
+                env["ASCEND_PROFILE_ENABLED"] = str(bool(self.profile_targets)).lower()
         self.proc: subprocess.Popen = subprocess.Popen(aisbench_cmd, shell=True, env=env)
 
     def __init__(self, model: str, port: int, aisbench_config: dict, host_ip: str = "localhost", verify=True):
         self.model = model
+        self.benchmark_work_dir = aisbench_config.get("benchmark_work_dir")
         self.port = port
         self.host_ip = host_ip
         self.proc = None
         self.task_type = aisbench_config["case_type"]
+        self.fixed_input_tokens, self.tokenizer_mode = fixed_input_options(aisbench_config)
+        self.min_cached_tokens = aisbench_config.get("min_cached_tokens")
+        self.fixed_input_artifact_dir = None
+        if self.fixed_input_tokens is not None:
+            if self.benchmark_work_dir:
+                Path(self.benchmark_work_dir).mkdir(parents=True, exist_ok=True)
+            self.fixed_input_artifact_dir = tempfile.mkdtemp(prefix="fixed-input-", dir=self.benchmark_work_dir)
         self.exp_folder = None
         self.result_line = None
         if self.task_type == "curl_cmd":
@@ -112,7 +129,9 @@ class AisbenchRunner:
                     raise e
             self.result = "SUCCESS"
             return
-        self.benchmark_name = str(aisbench_config.get("benchmark_name", "unknown"))
+        self.benchmark_name = str(
+            aisbench_config.get("source_benchmark_name", aisbench_config.get("benchmark_name", "unknown"))
+        )
         self.benchmark_artifact_name = str(aisbench_config.get("benchmark_artifact_name", self.benchmark_name))
         self.dataset_path = aisbench_config.get("dataset_path_local")
         if not self.dataset_path:
@@ -158,6 +177,8 @@ class AisbenchRunner:
         try:
             self._run_aisbench_task()
             self._wait_for_task()
+            if self.fixed_input_artifact_dir is not None:
+                validate_fixed_input_artifacts(self.fixed_input_artifact_dir, self.num_prompts)
         except BaseException:
             try:
                 self._finish_profiling(controller)
@@ -299,6 +320,13 @@ class AisbenchRunner:
             content = re.sub(r"temperature.*", f"temperature={self.temperature},", content)
         if self.no_pred:
             content = re.sub(r"pred_postprocessor.*", "#pred_postprocessor", content)
+        content = append_fixed_input_config(
+            content,
+            getattr(self, "fixed_input_tokens", None),
+            getattr(self, "tokenizer_mode", "auto"),
+            getattr(self, "fixed_input_artifact_dir", None),
+            getattr(self, "min_cached_tokens", None),
+        )
         conf_path_new = os.path.join(REQUEST_CONF_DIR, f"{self.request_conf}_custom.py")
         with open(conf_path_new, "w", encoding="utf-8") as f:
             f.write(content)
@@ -337,7 +365,7 @@ class AisbenchRunner:
 
     def _check_runtime_stdout(self):
         time.sleep(5)
-        cmd = f"tail -100 {self.stdout_file}"
+        cmd = f"tail -100 {shlex.quote(self.stdout_file)}"
         return subprocess.check_output(cmd, shell=True).decode()
 
     @staticmethod
@@ -453,6 +481,7 @@ class _MetricsServer:
 
 
 def run_aisbench_cases(model, port, aisbench_cases, server_args="", host_ip="localhost"):
+    aisbench_cases = prepare_repeat_artifacts(list(aisbench_cases))
     aisbench_results = []
     aisbench_errors = []
     total = sum(1 for c in aisbench_cases if c)
@@ -467,14 +496,18 @@ def run_aisbench_cases(model, port, aisbench_cases, server_args="", host_ip="loc
         logging.info("[%d/%d] Starting benchmark: %s (type=%s)", idx, total, benchmark_name, case_type)
         logging.info("=" * 60)
         try:
-            with AisbenchRunner(model=model, port=port, host_ip=host_ip, aisbench_config=aisbench_case) as aisbench:
+            runner_class = FunctionalRunner if case_type == "functional" else AisbenchRunner
+            with runner_class(model=model, port=port, host_ip=host_ip, aisbench_config=aisbench_case) as aisbench:
                 aisbench_results.append(aisbench.result)
+            record_repeat_result(aisbench_case, aisbench_results[-1])
             logging.info("[%d/%d] Finished benchmark: %s", idx, total, benchmark_name)
         except Exception as e:
+            record_repeat_result(aisbench_case, error=e)
             aisbench_results.append("")
             aisbench_errors.append([aisbench_case, e])
             logging.error("[%d/%d] Benchmark failed: %s, reason: %s", idx, total, benchmark_name, e)
             print(e)
+    write_repeat_summary(aisbench_cases)
     for failed_case, error_info in aisbench_errors:
         error_msg = f"The following aisbench case failed: {failed_case}, reason is {error_info}"
         if server_args:
