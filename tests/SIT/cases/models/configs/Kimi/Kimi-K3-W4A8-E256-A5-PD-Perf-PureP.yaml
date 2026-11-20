@@ -1,9 +1,8 @@
-# Draft: hardware execution and baseline calibration are pending.
-# Reference: https://github.com/vllm-project/vllm-ascend/pull/20101
-# Two A5 nodes: node 0 = Prefill, node 1 = Decode; TP8/EP8 per role.
-# Read Kimi-K3-W4A8-E256-A5-PD-README.md before running.
-# Performance warmup jobs only prime the service and have no metric gate.
-test_name: Kimi-K3-W4A8-E256-A5-PD-main-Accu
+# Draft: A3/A5 hardware validation and performance baseline calibration are pending.
+# Warmup and measured rounds have separate artifact groups; do not aggregate warmup metrics.
+# Prefill-focused: 2048-token input, one output token, prefix caching enabled, no speculative decoding.
+# Cache-enabled short-output workload: repeated/shared prompts can skip prefill; not a cold-prefill baseline.
+test_name: Kimi-K3-W4A8-E256-A5-PD-main-Perf-PureP
 model: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
 num_nodes: 2
 npu_per_node: 8
@@ -47,7 +46,7 @@ templates:
     SERVER_PORT: ${PORT}
     ASCEND_RT_VISIBLE_DEVICES: ${VISIBLE_DEVICES}
     LD_LIBRARY_PATH: /usr/local/Ascend/ascend-toolkit/latest/python/site-packages/mooncake:$LD_LIBRARY_PATH
-    TORCH_EXTENSIONS_DIR: /tmp/task4_kimi_k3_main_accuracy/node-${NODE_INDEX}/dp-${DP_RANK}
+    TORCH_EXTENSIONS_DIR: /tmp/task4_kimi_k3_main_performance_purep/node-${NODE_INDEX}/dp-${DP_RANK}
   server_cmd_template:
   - --host
   - 0.0.0.0
@@ -83,13 +82,12 @@ templates:
   - '{"thinking_effort":"low"}'
   - --enforce-eager
   - --max-model-len
-  - '4096'
+  - '24576'
   - --max-num-seqs
   - '100'
   - --max-num-batched-tokens
   - '3072'
   - --enable-chunked-prefill
-  - --no-enable-prefix-caching
   - --block-size
   - '768'
   - --cp-kv-cache-interleave-size
@@ -104,6 +102,7 @@ templates:
   - '{"enable_flashcomm1":true}'
   - --kv-transfer-config
   - '{"kv_connector":"MooncakeConnectorV2","kv_role":"kv_producer","kv_port":"30000","kv_connector_extra_config":{"prefill":{"dp_size":1,"tp_size":8},"decode":{"dp_size":1,"tp_size":8}}}'
+  - --enable-prefix-caching
 - node_index: 1
   envs:
     VLLM_USE_V2_MODEL_RUNNER: '1'
@@ -118,7 +117,7 @@ templates:
     SERVER_PORT: ${PORT}
     ASCEND_RT_VISIBLE_DEVICES: ${VISIBLE_DEVICES}
     LD_LIBRARY_PATH: /usr/local/Ascend/ascend-toolkit/latest/python/site-packages/mooncake:$LD_LIBRARY_PATH
-    TORCH_EXTENSIONS_DIR: /tmp/task4_kimi_k3_main_accuracy/node-${NODE_INDEX}/dp-${DP_RANK}
+    TORCH_EXTENSIONS_DIR: /tmp/task4_kimi_k3_main_performance_purep/node-${NODE_INDEX}/dp-${DP_RANK}
   server_cmd_template:
   - --host
   - 0.0.0.0
@@ -154,13 +153,12 @@ templates:
   - '{"thinking_effort":"low"}'
   - --enforce-eager
   - --max-model-len
-  - '4096'
+  - '24576'
   - --max-num-seqs
   - '100'
   - --max-num-batched-tokens
   - '768'
   - --enable-chunked-prefill
-  - --no-enable-prefix-caching
   - --block-size
   - '768'
   - --cp-kv-cache-interleave-size
@@ -175,36 +173,49 @@ templates:
   - '{"enable_flashcomm1":true}'
   - --kv-transfer-config
   - '{"kv_connector":"MooncakeConnectorV2","kv_role":"kv_consumer","kv_port":"30100","kv_connector_extra_config":{"prefill":{"dp_size":1,"tp_size":8},"decode":{"dp_size":1,"tp_size":8}}}'
+  - --enable-prefix-caching
 benchmarks:
-  gsm8k_first20_c1:
+  purep_warmup:
     repeat_count: 1
-    case_type: accuracy
+    case_type: performance
     dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
-    dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
     model_path: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
-    request_conf: vllm_api_general_chat
-    dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
-    num_prompts: 20
-    max_out_len: 1024
-    batch_size: 1
+    request_conf: vllm_api_general_stream
+    dataset_conf: gsm8k/gsm8k_gen_0_shot_cot_str_perf
+    num_prompts: 4
+    fixed_input_tokens: 2048
+    tokenizer_mode: kimi_k3
+    max_out_len: 1
+    batch_size: 4
+    request_rate: 0
     temperature: 0
     top_p: 1.0
     seed: 42
-    baseline: 50
-    threshold: 50
-  gsm8k_first100_c60:
+    baseline: null
+    threshold: null
+    dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
+    input_throughput_baseline: null
+    input_throughput_threshold: null
+    tpot_threshold: null
+  purep_first100_c60:
     repeat_count: 5
-    case_type: accuracy
+    case_type: performance
     dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
-    dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
     model_path: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
-    request_conf: vllm_api_general_chat
-    dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
+    request_conf: vllm_api_general_stream
+    dataset_conf: gsm8k/gsm8k_gen_0_shot_cot_str_perf
     num_prompts: 100
-    max_out_len: 1024
+    fixed_input_tokens: 2048
+    tokenizer_mode: kimi_k3
+    max_out_len: 1
     batch_size: 60
+    request_rate: 0
     temperature: 0
     top_p: 1.0
     seed: 42
-    baseline: 50
-    threshold: 50
+    baseline: null
+    threshold: null
+    dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
+    input_throughput_baseline: null
+    input_throughput_threshold: null
+    tpot_threshold: null

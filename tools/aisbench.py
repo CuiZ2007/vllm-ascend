@@ -32,6 +32,7 @@ from modelscope import snapshot_download  # type: ignore
 
 from tools.benchmark_repeats import prepare_repeat_artifacts, record_repeat_result, write_repeat_summary
 from tools.fixed_input import append_fixed_input_config, fixed_input_options, validate_fixed_input_artifacts
+from tools.functional_requests import FunctionalRunner
 from tools.profiling import safe_name
 from tools.profiling.capture import (
     ProfileController,
@@ -105,6 +106,7 @@ class AisbenchRunner:
         self.proc = None
         self.task_type = aisbench_config["case_type"]
         self.fixed_input_tokens, self.tokenizer_mode = fixed_input_options(aisbench_config)
+        self.min_cached_tokens = aisbench_config.get("min_cached_tokens")
         self.fixed_input_artifact_dir = None
         if self.fixed_input_tokens is not None:
             if self.benchmark_work_dir:
@@ -323,6 +325,7 @@ class AisbenchRunner:
             getattr(self, "fixed_input_tokens", None),
             getattr(self, "tokenizer_mode", "auto"),
             getattr(self, "fixed_input_artifact_dir", None),
+            getattr(self, "min_cached_tokens", None),
         )
         conf_path_new = os.path.join(REQUEST_CONF_DIR, f"{self.request_conf}_custom.py")
         with open(conf_path_new, "w", encoding="utf-8") as f:
@@ -493,7 +496,8 @@ def run_aisbench_cases(model, port, aisbench_cases, server_args="", host_ip="loc
         logging.info("[%d/%d] Starting benchmark: %s (type=%s)", idx, total, benchmark_name, case_type)
         logging.info("=" * 60)
         try:
-            with AisbenchRunner(model=model, port=port, host_ip=host_ip, aisbench_config=aisbench_case) as aisbench:
+            runner_class = FunctionalRunner if case_type == "functional" else AisbenchRunner
+            with runner_class(model=model, port=port, host_ip=host_ip, aisbench_config=aisbench_case) as aisbench:
                 aisbench_results.append(aisbench.result)
             record_repeat_result(aisbench_case, aisbench_results[-1])
             logging.info("[%d/%d] Finished benchmark: %s", idx, total, benchmark_name)

@@ -346,6 +346,10 @@ a5:
 #        size: 2
   single_node:
     test_config:
+      - name: Kimi-K3-W4A8-E256-A5-Functional-First500
+        os: linux-aarch64-a5-8
+        config_file_path: Kimi-K3-W4A8-E256-A5-Functional-First500.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
       - name: Kimi-K3-W4A8-E256-A5-GSM8K-First100
         os: linux-aarch64-a5-8
         config_file_path: Kimi-K3-W4A8-E256-A5.yaml
@@ -411,8 +415,24 @@ a5:
         config_base_path: tests/SIT/cases/models/configs/Step
   multi_node:
     test_config:
-      - name: Kimi-K3-W4A8-E256-A5-PD-Accu
-        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Accu.yaml
+      - name: Kimi-K3-W4A8-E256-A5-PD-Functional-First500
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Functional-First500.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
+        size: 2
+      - name: Kimi-K3-W4A8-E256-A5-PD-Accu-First20
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Accu-First20.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
+        size: 2
+      - name: Kimi-K3-W4A8-E256-A5-PD-Accu-First100
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Accu-First100.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
+        size: 2
+      - name: Kimi-K3-W4A8-E256-A5-PD-Perf-PureP
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Perf-PureP.yaml
+        config_base_path: tests/SIT/cases/models/configs/Kimi
+        size: 2
+      - name: Kimi-K3-W4A8-E256-A5-PD-Perf-PureD
+        config_file_path: Kimi-K3-W4A8-E256-A5-PD-Perf-PureD.yaml
         config_base_path: tests/SIT/cases/models/configs/Kimi
         size: 2
       - name: Kimi-K3-W4A8-E256-A5-PD-Perf

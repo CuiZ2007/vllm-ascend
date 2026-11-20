@@ -58,15 +58,20 @@ def test_legacy_default_and_config_isolation():
     assert raw["benchmarks"]["case"]["nested"] == []
 
 
-def test_real_yaml_expands_to_six_runs_and_520_answers():
-    paths = list(ROOT.glob("tests/**/Kimi-K3-W4A8-E256-A5-PD-Accu.yaml"))
-    assert len(paths) == 1
-    raw = yaml.safe_load(paths[0].read_text())
-    cases = parse_cases(raw)
-    assert len(cases) == 6
-    assert [c["repeat_index"] for c in cases] == [1, 1, 2, 3, 4, 5]
-    assert sum(c["num_prompts"] for c in cases) == 520
-    assert [c["batch_size"] for c in cases] == [1, 60, 60, 60, 60, 60]
+def test_real_accuracy_tiers_expand_independently():
+    counts = []
+    for suffix, prompts, batch, rounds in [("First20", 20, 1, 1), ("First100", 100, 60, 5)]:
+        paths = list(ROOT.glob(f"tests/**/Kimi-K3-W4A8-E256-A5-PD-Accu-{suffix}.yaml"))
+        assert len(paths) == 1
+        raw = yaml.safe_load(paths[0].read_text())
+        assert raw["test_name"].endswith(f"-{suffix}")
+        assert len(raw["benchmarks"]) == 1
+        cases = parse_cases(raw)
+        assert len(cases) == rounds
+        assert [case["repeat_index"] for case in cases] == list(range(1, rounds + 1))
+        assert all(case["num_prompts"] == prompts and case["batch_size"] == batch for case in cases)
+        counts.append(sum(case["num_prompts"] for case in cases))
+    assert counts == [20, 500]
 
 
 @pytest.mark.parametrize("name", ["../escape", "/absolute", ".", "..", "bad/name"])
