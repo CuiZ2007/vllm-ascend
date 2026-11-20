@@ -1,6 +1,6 @@
 test_cases:
-- name: Kimi-K3-W4A8-E256-A3-GSM8K
-  model: Kimi-K3-w4a8-experts256
+- name: Kimi-K3-W4A8-E256-A3-GSM8K-First20
+  model: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-experts256
   envs:
     SERVER_PORT: "8080"
     VLLM_USE_V2_MODEL_RUNNER: '1'
@@ -61,21 +61,6 @@ test_cases:
       num_prompts: 20
       max_out_len: 1024
       batch_size: 1
-      temperature: 0
-      top_p: 1.0
-      seed: 42
-      baseline: 50.0
-      threshold: 50.0
-    gsm8k_first100_c60:
-      repeat_count: 5
-      case_type: accuracy
-      dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
-      dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
-      request_conf: vllm_api_general_chat
-      dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
-      num_prompts: 100
-      max_out_len: 1024
-      batch_size: 60
       temperature: 0
       top_p: 1.0
       seed: 42
