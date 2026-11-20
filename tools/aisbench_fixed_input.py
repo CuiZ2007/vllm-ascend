@@ -8,7 +8,13 @@ from uuid import uuid4
 
 from ais_bench.benchmark.models import VLLMCustomAPI
 
-from tools.fixed_input import PADDING_TEXT, fit_prompt_tokens, positive_token_count, validate_prompt_usage
+from tools.fixed_input import (
+    PADDING_TEXT,
+    fit_prompt_tokens,
+    positive_token_count,
+    validate_cached_usage,
+    validate_prompt_usage,
+)
 
 
 def load_fixed_input_tokenizer(path: str, mode: str, trust_remote_code: bool):
@@ -40,9 +46,15 @@ class FixedInputVLLMAPI(VLLMCustomAPI):
         fixed_input_tokens: int,
         tokenizer_mode: str = "auto",
         fixed_input_artifact_dir: str | None = None,
+        min_cached_tokens: int | None = None,
         **kwargs,
     ):
         self.fixed_input_tokens = positive_token_count(fixed_input_tokens)
+        self.min_cached_tokens = min_cached_tokens
+        if min_cached_tokens is not None:
+            positive_token_count(min_cached_tokens)
+            if min_cached_tokens > self.fixed_input_tokens:
+                raise ValueError("min_cached_tokens cannot exceed fixed_input_tokens")
         self.fixed_input_artifact_dir = Path(fixed_input_artifact_dir) if fixed_input_artifact_dir else None
         if self.fixed_input_artifact_dir is not None:
             self.fixed_input_artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -72,6 +84,8 @@ class FixedInputVLLMAPI(VLLMCustomAPI):
             "expected_prompt_tokens": self.fixed_input_tokens,
             "final_input_token_ids": ids,
             "usage_validated": False,
+            "min_cached_tokens": self.min_cached_tokens,
+            "cached_tokens": None,
         }
         return body
 
@@ -80,6 +94,8 @@ class FixedInputVLLMAPI(VLLMCustomAPI):
         usage = data.get("usage")
         if usage is not None:
             validate_prompt_usage(usage, self.fixed_input_tokens)
+            cached = validate_cached_usage(usage, self.min_cached_tokens)
+            output.extra_details_data["fixed_input"]["cached_tokens"] = cached
             output.extra_details_data["fixed_input"]["usage_validated"] = True
 
     @staticmethod

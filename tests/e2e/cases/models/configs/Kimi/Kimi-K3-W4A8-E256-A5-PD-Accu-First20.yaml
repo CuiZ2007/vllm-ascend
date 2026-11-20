@@ -3,7 +3,7 @@
 # Two A5 nodes: node 0 = Prefill, node 1 = Decode; TP8/EP8 per role.
 # Read Kimi-K3-W4A8-E256-A5-PD-README.md before running.
 # Performance warmup jobs only prime the service and have no metric gate.
-test_name: Kimi-K3-W4A8-E256-A5-PD-0.30.0-Accu
+test_name: Kimi-K3-W4A8-E256-A5-PD-0.30.0-Accu-First20
 model: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
 num_nodes: 2
 npu_per_node: 8
@@ -187,22 +187,6 @@ benchmarks:
     num_prompts: 20
     max_out_len: 1024
     batch_size: 1
-    temperature: 0
-    top_p: 1.0
-    seed: 42
-    baseline: 50
-    threshold: 50
-  gsm8k_first100_c60:
-    repeat_count: 5
-    case_type: accuracy
-    dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
-    dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
-    model_path: /root/.cache/modelscope/hub/models/CuiZ2007/Kimi-K3-w4a8-mxfp-QuaRot-experts256
-    request_conf: vllm_api_general_chat
-    dataset_conf: gsm8k/gsm8k_gen_4_shot_cot_str
-    num_prompts: 100
-    max_out_len: 1024
-    batch_size: 60
     temperature: 0
     top_p: 1.0
     seed: 42

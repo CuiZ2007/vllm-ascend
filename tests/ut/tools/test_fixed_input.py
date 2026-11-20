@@ -246,3 +246,37 @@ def test_kimi_yaml_has_one_spec_per_role_and_one_fixed_benchmark():
         spec = json.loads(args[args.index("--speculative-config") + 1])
         assert spec["method"] == "ngram"
         assert spec["synthetic_acceptance_rates"] == [0.5]
+
+
+@pytest.mark.parametrize("cached", [None, True, "6", 5])
+def test_decode_measurement_rejects_missing_or_insufficient_cache(backend, cached):
+    model = backend.FixedInputVLLMAPI(path="/model", fixed_input_tokens=8, min_cached_tokens=6)
+    output = SimpleNamespace(extra_details_data={}, success=False)
+    body = asyncio.run(model.get_request_body("question", 3, output))
+    model.response = {"usage": {"prompt_tokens": 8, "prompt_tokens_details": {"cached_tokens": cached}}}
+    with pytest.raises(ValueError, match="Prefix cache requirement failed"):
+        asyncio.run(model.stream_infer(body, output))
+    assert output.success is False
+
+
+def test_decode_measurement_records_cache_hits(backend):
+    model = backend.FixedInputVLLMAPI(path="/model", fixed_input_tokens=8, min_cached_tokens=6)
+    output = SimpleNamespace(extra_details_data={}, success=False)
+    body = asyncio.run(model.get_request_body("question", 3, output))
+    model.response = {"usage": {"prompt_tokens": 8, "prompt_tokens_details": {"cached_tokens": 6}}}
+    asyncio.run(model.stream_infer(body, output))
+    assert output.extra_details_data["fixed_input"]["cached_tokens"] == 6
+    assert output.success
+
+
+@pytest.mark.parametrize("minimum", [0, True, "6", 9])
+def test_invalid_cache_requirement(minimum):
+    with pytest.raises(ValueError):
+        fixed.append_fixed_input_config("models = []", 8, "auto", min_cached_tokens=minimum)
+
+
+def test_generated_backend_receives_cache_requirement(backend):
+    scope = {"models": [dict(path="/model")]}
+    generated = fixed.append_fixed_input_config("", 8, "auto", min_cached_tokens=6)
+    exec(generated, scope)
+    assert scope["models"][0]["min_cached_tokens"] == 6

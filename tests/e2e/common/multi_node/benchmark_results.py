@@ -43,6 +43,13 @@ def get_vllm_version() -> str:
 
 
 def task_passed(case_config: dict[str, Any], result: Any) -> bool:
+    if case_config.get("case_type") == "functional":
+        return (
+            isinstance(result, dict)
+            and result.get("requests") == case_config.get("num_prompts")
+            and result.get("succeeded") == case_config.get("num_prompts")
+            and result.get("failed") == 0
+        )
     if result == "":
         return False
     case_type = case_config.get("case_type")
@@ -77,6 +84,8 @@ def build_task_entry(case_key: str, case_config: dict[str, Any], result: Any) ->
     metrics: dict[str, float] = {}
     if result == "":
         pass
+    elif case_type == "functional" and isinstance(result, dict):
+        metrics.update({key: result[key] for key in ("requests", "succeeded", "failed")})
     elif case_type == "accuracy" and isinstance(result, (int, float)):
         metrics["accuracy"] = round(float(result), 4)
     elif case_type == "performance" and isinstance(result, list) and len(result) == 2:

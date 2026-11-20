@@ -60,6 +60,17 @@ def validate_prompt_usage(usage: Mapping[str, Any], expected: int) -> None:
         raise ValueError(f"Fixed input length mismatch: expected {expected} prompt tokens, server reported {actual!r}")
 
 
+def validate_cached_usage(usage: Mapping[str, Any], minimum: int | None) -> int | None:
+    """Reject decode-focused measurements without sufficient reported cache hits."""
+    if minimum is None:
+        return None
+    details = usage.get("prompt_tokens_details") or {}
+    cached = details.get("cached_tokens") if isinstance(details, Mapping) else None
+    if isinstance(cached, bool) or not isinstance(cached, int) or cached < minimum:
+        raise ValueError(f"Prefix cache requirement failed: expected at least {minimum} cached tokens, got {cached!r}")
+    return cached
+
+
 def validate_fixed_input_artifacts(directory: str, expected_requests: int | None) -> None:
     records = [json.loads(path.read_text(encoding="utf-8")) for path in Path(directory).glob("*.json")]
     # AISBench may issue additional warmup requests using the same backend.
@@ -70,8 +81,16 @@ def validate_fixed_input_artifacts(directory: str, expected_requests: int | None
 
 
 def append_fixed_input_config(
-    content: str, count: int | None, tokenizer_mode: str, artifact_dir: str | None = None
+    content: str,
+    count: int | None,
+    tokenizer_mode: str,
+    artifact_dir: str | None = None,
+    min_cached_tokens: int | None = None,
 ) -> str:
+    if min_cached_tokens is not None:
+        positive_token_count(min_cached_tokens)
+        if count is None or min_cached_tokens > count:
+            raise ValueError("min_cached_tokens requires fixed_input_tokens >= min_cached_tokens")
     if count is None:
         return content
     positive_token_count(count)
@@ -83,5 +102,6 @@ def append_fixed_input_config(
         f"        fixed_input_tokens={count!r},\n"
         f"        tokenizer_mode={tokenizer_mode!r},\n"
         f"        fixed_input_artifact_dir={artifact_dir!r},\n"
+        f"        min_cached_tokens={min_cached_tokens!r},\n"
         "    )\n"
     )
