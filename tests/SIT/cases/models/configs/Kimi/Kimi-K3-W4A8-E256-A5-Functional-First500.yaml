@@ -56,6 +56,8 @@ test_cases:
   benchmarks:
     gsm8k_first500_c60_functional:
       case_type: functional
+      baseline: 50
+      threshold: 50
       repeat_count: 1
       dataset_path: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
       dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k

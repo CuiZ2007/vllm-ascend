@@ -197,6 +197,6 @@ benchmarks:
     temperature: 0
     top_p: 1.0
     seed: 42
-    baseline: null
-    threshold: 0.95
+    baseline: 50
+    threshold: 50
     dataset_path_local: /root/.cache/modelscope/hub/datasets/CuiZ2007/gsm8k
