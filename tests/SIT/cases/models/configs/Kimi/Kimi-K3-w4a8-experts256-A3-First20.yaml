@@ -64,5 +64,5 @@ test_cases:
       temperature: 0
       top_p: 1.0
       seed: 42
-      baseline: 50.0
-      threshold: 50.0
+      baseline: 50
+      threshold: 50
